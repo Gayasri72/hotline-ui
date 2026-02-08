@@ -2,6 +2,11 @@
   "name": "hotline-pos",
   "private": true,
   "version": "1.0.0",
+  "description": "Hotline POS - Point of Sale Application",
+  "author": {
+    "name": "Pixzoralabs",
+    "email": "support@pixzoralabs.com"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",
