@@ -75,10 +75,22 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
+          name: "Hotline POS ${{ github.ref_name }}"
+          body: |
+            ## What's New in ${{ github.ref_name }}
+            
+            ### Downloads
+            - **Windows**: `Hotline-POS-Windows-*-Setup.exe`
+            - **Linux**: `Hotline-POS-Linux-*.AppImage` or `.deb`
+            
+            ### Installation
+            - **First time**: Download and run the installer
+            - **Existing users**: Update will be prompted automatically in the app
           files: |
             windows-installer/**/*.exe
             linux-installer/**/*.AppImage
             linux-installer/**/*.deb
           draft: true
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
