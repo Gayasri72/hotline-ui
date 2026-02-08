@@ -42,18 +42,18 @@ export default function Login(): JSX.Element {
     setLoading(false);
   };
   return (
-    <div className="min-h-screen bg-gradient-to-br from-sky-50 via-blue-50 to-white flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-white flex items-center justify-center p-4">
       {/* Animated background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-sky-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-emerald-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-teal-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
       </div>
       <div className="relative w-full max-w-md">
-        <div className="absolute inset-0 bg-gradient-to-r from-sky-400 to-blue-500 rounded-2xl blur opacity-20"></div>
-        <div className="relative bg-white/95 backdrop-blur-xl border border-sky-200/50 rounded-2xl p-8 shadow-2xl shadow-sky-100/20">
+        <div className="absolute inset-0 bg-gradient-to-r from-emerald-400 to-teal-500 rounded-2xl blur opacity-20"></div>
+        <div className="relative bg-white/95 backdrop-blur-xl border border-emerald-200/50 rounded-2xl p-8 shadow-2xl shadow-emerald-100/20">
           {/* Logo */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-400 via-blue-500 to-blue-600 mb-4 shadow-lg shadow-sky-500/20">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 via-teal-500 to-teal-600 mb-4 shadow-lg shadow-emerald-500/20">
               <svg
                 className="w-8 h-8 text-white"
                 fill="none"
@@ -164,7 +164,7 @@ export default function Login(): JSX.Element {
             </button>
           </form>
           <p className="mt-8 text-center text-sm text-slate-500">
-            Hotline POS System v1.0
+            Hotline POS System v1.0.2 🚀
           </p>
         </div>
       </div>
