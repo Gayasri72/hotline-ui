@@ -46,6 +46,7 @@
       "deb"
     ],
     "artifactName": "${productName}-Linux-${version}.${ext}",
-    "category": "Office"
+    "category": "Office",
+    "maintainer": "Pixzoralabs <support@pixzoralabs.com>"
   }
 }
