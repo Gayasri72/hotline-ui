@@ -1,9 +1,8 @@
-import { app, BrowserWindow } from 'electron'
-import { createRequire } from 'node:module'
+import { app, BrowserWindow, dialog } from 'electron'
+import { autoUpdater } from 'electron-updater'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
-const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // The built directory structure
@@ -25,6 +24,71 @@ export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
 
 let win: BrowserWindow | null
+
+// ============================================
+// AUTO-UPDATE CONFIGURATION
+// ============================================
+
+// Configure auto-updater
+autoUpdater.autoDownload = false // Don't download automatically, ask user first
+autoUpdater.autoInstallOnAppQuit = true // Install on quit
+
+// Auto-update event handlers
+autoUpdater.on('checking-for-update', () => {
+  console.log('Checking for updates...')
+})
+
+autoUpdater.on('update-available', (info) => {
+  console.log('Update available:', info.version)
+  dialog.showMessageBox({
+    type: 'info',
+    title: 'Update Available',
+    message: `A new version (${info.version}) is available. Would you like to download it now?`,
+    buttons: ['Download', 'Later']
+  }).then((result) => {
+    if (result.response === 0) {
+      autoUpdater.downloadUpdate()
+    }
+  })
+})
+
+autoUpdater.on('update-not-available', () => {
+  console.log('No updates available.')
+})
+
+autoUpdater.on('download-progress', (progressObj) => {
+  let message = `Download speed: ${progressObj.bytesPerSecond}`
+  message += ` - Downloaded ${progressObj.percent.toFixed(2)}%`
+  message += ` (${progressObj.transferred}/${progressObj.total})`
+  console.log(message)
+  
+  // Send progress to renderer if needed
+  if (win) {
+    win.webContents.send('update-download-progress', progressObj.percent)
+  }
+})
+
+autoUpdater.on('update-downloaded', (info) => {
+  console.log('Update downloaded:', info.version)
+  dialog.showMessageBox({
+    type: 'info',
+    title: 'Update Ready',
+    message: `Version ${info.version} has been downloaded. Restart now to install the update?`,
+    buttons: ['Restart Now', 'Later']
+  }).then((result) => {
+    if (result.response === 0) {
+      autoUpdater.quitAndInstall()
+    }
+  })
+})
+
+autoUpdater.on('error', (error) => {
+  console.error('Auto-update error:', error)
+})
+
+// ============================================
+// WINDOW CREATION
+// ============================================
 
 function createWindow() {
   win = new BrowserWindow({
@@ -65,4 +129,14 @@ app.on('activate', () => {
   }
 })
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  createWindow()
+  
+  // Check for updates after app is ready (only in production)
+  if (!VITE_DEV_SERVER_URL) {
+    // Wait a bit before checking for updates to not slow down startup
+    setTimeout(() => {
+      autoUpdater.checkForUpdates()
+    }, 3000)
+  }
+})
