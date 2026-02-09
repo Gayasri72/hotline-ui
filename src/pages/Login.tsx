@@ -165,7 +165,7 @@ export default function Login(): JSX.Element {
             </button>
           </form>
           <p className="mt-8 text-center text-sm text-slate-500">
-            Hotline POS System v1.0.5 🖨️
+            Hotline POS System v1.0.6 📋
           </p>
         </div>
       </div>

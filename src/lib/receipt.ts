@@ -42,6 +42,25 @@ interface RepairData {
   change?: number;
 }
 
+interface DeviceReceivedData {
+  jobNumber: string;
+  customer: { name: string; phone: string; email?: string };
+  device: { 
+    brand: string; 
+    model: string; 
+    imei?: string;
+    serialNumber?: string;
+    color?: string;
+    accessories?: string[];
+  };
+  problemDescription?: string;
+  estimatedCost?: number;
+  advancePayment?: number;
+  receivedAt?: string;
+  createdAt?: string;
+  receivedBy?: { username?: string };
+}
+
 const receiptStyles = `
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { 
@@ -50,24 +69,28 @@ const receiptStyles = `
     width: 80mm; 
     padding: 5mm;
     background: #fff;
+    color: #000;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   .receipt { max-width: 72mm; margin: 0 auto; }
-  .header { text-align: center; padding-bottom: 3mm; border-bottom: 1px dashed #333; }
-  .logo { font-size: 18px; font-weight: bold; color: #1a1a2e; margin-bottom: 2mm; }
-  .shop-info { font-size: 10px; color: #666; }
-  .section { padding: 3mm 0; border-bottom: 1px dashed #ccc; }
-  .section-title { font-weight: bold; font-size: 11px; color: #333; margin-bottom: 2mm; text-transform: uppercase; letter-spacing: 0.5px; }
-  .row { display: flex; justify-content: space-between; margin-bottom: 1mm; }
-  .row.total { font-weight: bold; font-size: 14px; border-top: 1px solid #333; padding-top: 2mm; margin-top: 2mm; }
-  .item-name { flex: 1; }
-  .item-qty { width: 15mm; text-align: center; color: #666; }
-  .item-price { width: 22mm; text-align: right; }
-  .label { color: #666; }
-  .value { font-weight: 500; }
-  .highlight { color: #0d6efd; }
-  .footer { text-align: center; padding-top: 3mm; font-size: 10px; color: #666; }
-  .footer .thanks { font-size: 12px; font-weight: bold; color: #333; margin-bottom: 2mm; }
-  .meta { font-size: 10px; color: #888; }
+  .header { text-align: center; padding-bottom: 3mm; border-bottom: 2px dashed #333; }
+  .logo { font-size: 16px; font-weight: bold; color: #000; margin-bottom: 2mm; }
+  .shop-info { font-size: 10px; color: #333; line-height: 1.4; }
+  .section { padding: 3mm 0; border-bottom: 1px dashed #999; }
+  .section-title { font-weight: bold; font-size: 11px; color: #000; margin-bottom: 2mm; text-transform: uppercase; letter-spacing: 0.5px; background: #eee; padding: 1mm 2mm; }
+  .row { display: flex; justify-content: space-between; margin-bottom: 1mm; gap: 2mm; }
+  .row.total { font-weight: bold; font-size: 13px; border-top: 2px solid #000; padding-top: 2mm; margin-top: 2mm; }
+  .item-name { flex: 1; word-wrap: break-word; overflow-wrap: break-word; }
+  .item-qty { min-width: 12mm; text-align: center; color: #333; }
+  .item-price { min-width: 22mm; text-align: right; white-space: nowrap; }
+  .label { color: #333; min-width: 25mm; }
+  .value { font-weight: 600; color: #000; text-align: right; word-wrap: break-word; flex: 1; }
+  .highlight { color: #0066cc; font-weight: 600; }
+  .footer { text-align: center; padding-top: 4mm; font-size: 10px; color: #333; border-top: 2px dashed #333; margin-top: 2mm; }
+  .footer .thanks { font-size: 12px; font-weight: bold; color: #000; margin-bottom: 2mm; }
+  .meta { font-size: 10px; color: #555; }
+  .note { font-size: 9px; color: #666; font-style: italic; margin-top: 2mm; text-align: center; padding: 2mm; background: #f5f5f5; border-radius: 2mm; }
 `;
 
 function formatCurrency(amount: number): string {
@@ -265,6 +288,118 @@ export function generateRepairReceiptHTML(repair: RepairData): string {
         <div class="footer">
           <div class="thanks">Thank you for choosing us! 💙</div>
           <div>${shopFooter || 'Quality repairs, always'}</div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+export function generateDeviceReceivedReceiptHTML(repair: DeviceReceivedData): string {
+  const shopHeader = getReceiptHeader();
+
+  const receivedDate = repair.receivedAt || repair.createdAt 
+    ? new Date(repair.receivedAt || repair.createdAt!).toLocaleString('en-LK', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: true
+      })
+    : formatDate();
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>Device Received - ${repair.jobNumber}</title>
+      <style>${receiptStyles}</style>
+    </head>
+    <body>
+      <div class="receipt">
+        <div class="header">
+          <div class="logo">✦ ${shopHeader.split('\n')[0] || 'HOTLINE POS'} ✦</div>
+          <div class="shop-info">${shopHeader.split('\n').slice(1).join('<br>')}</div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">📋 DEVICE RECEIVED SLIP</div>
+          <div class="row meta">
+            <span>Job #: ${repair.jobNumber}</span>
+            <span>${receivedDate}</span>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">👤 Customer</div>
+          <div class="row">
+            <span class="label">Name</span>
+            <span class="value">${repair.customer.name}</span>
+          </div>
+          <div class="row">
+            <span class="label">Phone</span>
+            <span class="value">${repair.customer.phone}</span>
+          </div>
+          ${repair.customer.email ? `<div class="row">
+            <span class="label">Email</span>
+            <span class="value">${repair.customer.email}</span>
+          </div>` : ''}
+        </div>
+
+        <div class="section">
+          <div class="section-title">📱 Device</div>
+          <div class="row">
+            <span class="label">Device</span>
+            <span class="value">${repair.device.brand} ${repair.device.model}</span>
+          </div>
+          ${repair.device.imei ? `<div class="row">
+            <span class="label">IMEI</span>
+            <span class="value">${repair.device.imei}</span>
+          </div>` : ''}
+          ${repair.device.serialNumber ? `<div class="row">
+            <span class="label">Serial</span>
+            <span class="value">${repair.device.serialNumber}</span>
+          </div>` : ''}
+          ${repair.device.color ? `<div class="row">
+            <span class="label">Color</span>
+            <span class="value">${repair.device.color}</span>
+          </div>` : ''}
+          ${repair.device.accessories?.length ? `<div class="row">
+            <span class="label">Accessories</span>
+            <span class="value">${repair.device.accessories.join(', ')}</span>
+          </div>` : ''}
+        </div>
+
+        <div class="section">
+          <div class="section-title">🔧 Problem</div>
+          <div style="font-size: 11px; color: #000; line-height: 1.4;">
+            ${repair.problemDescription || 'N/A'}
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">💰 Payment</div>
+          <div class="row">
+            <span class="label">Est. Cost</span>
+            <span class="value">${formatCurrency(repair.estimatedCost || 0)}</span>
+          </div>
+          <div class="row">
+            <span class="label highlight">Advance</span>
+            <span class="value highlight">${formatCurrency(repair.advancePayment || 0)}</span>
+          </div>
+          <div class="row total">
+            <span>Balance (Est)</span>
+            <span>${formatCurrency((repair.estimatedCost || 0) - (repair.advancePayment || 0))}</span>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="row meta">
+            <span>Received by: ${repair.receivedBy?.username || 'Staff'}</span>
+          </div>
+        </div>
+
+        <div class="footer">
+          <div class="thanks">📋 Please keep this slip safe</div>
+          <div>Present it when collecting your device</div>
         </div>
       </div>
     </body>

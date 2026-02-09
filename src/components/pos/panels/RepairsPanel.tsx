@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { getReceiptHeader } from "../../../lib/settings";
+import { generateDeviceReceivedReceiptHTML, printReceipt } from "../../../lib/receipt";
 import type { RepairsPanelProps, RepairJob } from "../../../types/pos";
 
 export function RepairsPanel({
@@ -42,73 +42,9 @@ export function RepairsPanel({
   ).length;
   const highCount = filteredRepairs.filter((r) => r.priority === "HIGH").length;
 
-  const printDeviceReceivedReceipt = (repair: RepairJob) => {
-    const shopHeader = getReceiptHeader();
-    const receiptContent = `
-${shopHeader}═══════════════════════════════════════════
-        DEVICE RECEIVED SLIP
-═══════════════════════════════════════════
-
-Job Number: ${repair.jobNumber}
-Date: ${new Date(repair.receivedAt || repair.createdAt).toLocaleString()}
-
-───────────────────────────────────────────
-CUSTOMER DETAILS
-───────────────────────────────────────────
-Name: ${repair.customer.name}
-Phone: ${repair.customer.phone}
-${repair.customer.email ? `Email: ${repair.customer.email}` : ""}
-
-───────────────────────────────────────────
-DEVICE DETAILS
-───────────────────────────────────────────
-Device: ${repair.device.brand} ${repair.device.model}
-${repair.device.imei ? `IMEI: ${repair.device.imei}` : ""}
-${repair.device.serialNumber ? `Serial: ${repair.device.serialNumber}` : ""}
-${repair.device.color ? `Color: ${repair.device.color}` : ""}
-${repair.device.accessories?.length ? `Accessories: ${repair.device.accessories.join(", ")}` : ""}
-
-───────────────────────────────────────────
-PROBLEM DESCRIPTION
-───────────────────────────────────────────
-${repair.problemDescription}
-
-───────────────────────────────────────────
-PAYMENT DETAILS
-───────────────────────────────────────────
-Estimated Cost:     Rs. ${(repair.estimatedCost || 0).toLocaleString()}
-Advance Paid:       Rs. ${(repair.advancePayment || 0).toLocaleString()}
-Balance (Est):      Rs. ${((repair.estimatedCost || 0) - (repair.advancePayment || 0)).toLocaleString()}
-
-───────────────────────────────────────────
-Received By: ${repair.receivedBy?.username || "N/A"}
-
-═══════════════════════════════════════════
-      Please keep this slip safe.
-       Present it when collecting
-            your device.
-═══════════════════════════════════════════
-    `.trim();
-
-    const printWindow = window.open("", "_blank", "width=400,height=600");
-    if (printWindow) {
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Device Received - ${repair.jobNumber}</title>
-            <style>
-              body { font-family: 'Courier New', monospace; font-size: 12px; padding: 20px; }
-              pre { white-space: pre-wrap; word-wrap: break-word; }
-            </style>
-          </head>
-          <body>
-            <pre>${receiptContent}</pre>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-      printWindow.print();
-    }
+  const printDeviceReceivedReceipt = async (repair: RepairJob) => {
+    const receiptHTML = generateDeviceReceivedReceiptHTML(repair);
+    await printReceipt(receiptHTML);
   };
 
   const getPriorityStyles = (priority: string) => {
