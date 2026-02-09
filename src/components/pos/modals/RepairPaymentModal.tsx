@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "../../../lib/api";
-import { getReceiptHeader, getReceiptFooter } from "../../../lib/settings";
+import { generateRepairReceiptHTML, printReceipt as silentPrint } from "../../../lib/receipt";
 import type { RepairPaymentModalProps } from "../../../types/pos";
 
 export function RepairPaymentModal({
@@ -57,70 +57,15 @@ export function RepairPaymentModal({
       );
       if (res.status === "success") {
         if (printReceipt) {
-          const shopHeader = getReceiptHeader();
-          const shopFooter = getReceiptFooter();
-          const receiptContent = `
-${shopHeader}═══════════════════════════════════════════
-        REPAIR COMPLETE RECEIPT
-═══════════════════════════════════════════
-
-Job Number: ${repair.jobNumber}
-Date: ${new Date().toLocaleString()}
-
-───────────────────────────────────────────
-CUSTOMER DETAILS
-───────────────────────────────────────────
-Name: ${repair.customer.name}
-Phone: ${repair.customer.phone}
-
-───────────────────────────────────────────
-DEVICE DETAILS
-───────────────────────────────────────────
-Device: ${repair.device.brand} ${repair.device.model}
-Problem: ${repair.problemDescription}
-${repair.repairNotes ? `Solution: ${repair.repairNotes}` : ""}
-
-───────────────────────────────────────────
-COST BREAKDOWN
-───────────────────────────────────────────
-${repair.partsUsed?.length ? repair.partsUsed.map((p: any) => `${p.productName}: ${p.quantity} x Rs. ${p.unitPrice.toLocaleString()} = Rs. ${p.total.toLocaleString()}`).join("\n") : ""}
-Parts Total:        Rs. ${(repair.partsTotal || 0).toLocaleString()}
-Labor Cost:         Rs. ${(repair.laborCost || 0).toLocaleString()}
-───────────────────────────────────────────
-TOTAL COST:         Rs. ${totalCost.toLocaleString()}
-
-───────────────────────────────────────────
-PAYMENT
-───────────────────────────────────────────
-Advance Paid:       Rs. ${advancePaid.toLocaleString()}
-Balance Due:        Rs. ${balanceDue.toLocaleString()}
-Amount Received:    Rs. ${parseFloat(amountReceived).toLocaleString()}
-${change > 0 ? `Change:             Rs. ${change.toFixed(2)}` : ""}
-
-═══════════════════════════════════════════
-          ${shopFooter}
-═══════════════════════════════════════════
-          `.trim();
-
-          const printWindow = window.open("", "_blank", "width=400,height=700");
-          if (printWindow) {
-            printWindow.document.write(`
-              <html>
-                <head>
-                  <title>Repair Receipt - ${repair.jobNumber}</title>
-                  <style>
-                    body { font-family: 'Courier New', monospace; font-size: 12px; padding: 20px; }
-                    pre { white-space: pre-wrap; word-wrap: break-word; }
-                  </style>
-                </head>
-                <body>
-                  <pre>${receiptContent}</pre>
-                </body>
-              </html>
-            `);
-            printWindow.document.close();
-            printWindow.print();
-          }
+          // Generate beautiful receipt HTML and print silently
+          const receiptHTML = generateRepairReceiptHTML({
+            ...repair,
+            totalCost,
+            advancePayment: advancePaid,
+            amountReceived: parseFloat(amountReceived),
+            change: change > 0 ? change : 0,
+          });
+          await silentPrint(receiptHTML);
         }
         setShowSuccess(true);
         setTimeout(() => onSuccess(), 2000);

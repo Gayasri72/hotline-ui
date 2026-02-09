@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "../../../lib/api";
-import { getReceiptHeader, getReceiptFooter } from "../../../lib/settings";
+import { generateSaleReceiptHTML, printReceipt as silentPrint } from "../../../lib/receipt";
 import type { PaymentModalProps } from "../../../types/pos";
 
 export function PaymentModal({
@@ -80,60 +80,9 @@ export function PaymentModal({
       if (data.status === "success") {
         const sale = data.data?.sale;
         if (printReceipt && sale) {
-          const shopHeader = getReceiptHeader();
-          const shopFooter = getReceiptFooter();
-          const receiptContent = `
-${shopHeader}═══════════════════════════════════════════
-            SALES RECEIPT
-═══════════════════════════════════════════
-
-Receipt No: ${sale.saleNumber || "N/A"}
-Date: ${new Date().toLocaleString()}
-
-───────────────────────────────────────────
-ITEMS
-───────────────────────────────────────────
-${
-  sale.items
-    ?.map(
-      (item: any) =>
-        `${item.productName || "Item"}\n  ${item.quantity} x Rs. ${(item.unitPrice || 0).toLocaleString()} = Rs. ${(item.total || 0).toLocaleString()}`,
-    )
-    .join("\n") || "No items"
-}
-
-───────────────────────────────────────────
-Subtotal:         Rs. ${(sale.subtotal || 0).toLocaleString()}
-${sale.discountTotal > 0 ? `Discount:        -Rs. ${(sale.discountTotal || 0).toLocaleString()}\n` : ""}Tax:              Rs. ${(sale.taxTotal || 0).toLocaleString()}
-───────────────────────────────────────────
-TOTAL:            Rs. ${(sale.grandTotal || 0).toLocaleString()}
-Amount Paid:      Rs. ${(sale.amountPaid || 0).toLocaleString()}
-Change:           Rs. ${(sale.changeGiven || 0).toLocaleString()}
-
-═══════════════════════════════════════════
-          ${shopFooter}
-═══════════════════════════════════════════
-          `.trim();
-
-          const printWindow = window.open("", "_blank", "width=400,height=600");
-          if (printWindow) {
-            printWindow.document.write(`
-              <html>
-                <head>
-                  <title>Receipt - ${sale.saleNumber}</title>
-                  <style>
-                    body { font-family: 'Courier New', monospace; font-size: 12px; padding: 20px; }
-                    pre { white-space: pre-wrap; word-wrap: break-word; }
-                  </style>
-                </head>
-                <body>
-                  <pre>${receiptContent}</pre>
-                </body>
-              </html>
-            `);
-            printWindow.document.close();
-            printWindow.print();
-          }
+          // Generate beautiful receipt HTML and print silently
+          const receiptHTML = generateSaleReceiptHTML(sale);
+          await silentPrint(receiptHTML);
         }
         onSuccess();
       } else {

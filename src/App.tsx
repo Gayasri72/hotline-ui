@@ -1,6 +1,7 @@
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
+import UpdateProgress from "./components/UpdateProgress";
 import { PERMISSIONS } from "./constants/permission";
 import Login from "./pages/Login";
 import POS from "./pages/POS";
@@ -10,6 +11,8 @@ function App() {
   return (
     <AuthProvider>
       <HashRouter>
+        {/* Update Progress Overlay */}
+        <UpdateProgress />
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<Login />} />

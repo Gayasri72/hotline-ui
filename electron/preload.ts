@@ -18,7 +18,12 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     const [channel, ...omit] = args
     return ipcRenderer.invoke(channel, ...omit)
   },
-
-  // You can expose other APTs you need here.
-  // ...
 })
+
+// Expose silent print function
+contextBridge.exposeInMainWorld('electronPrint', {
+  silentPrint: (html: string): Promise<{ success: boolean }> => {
+    return ipcRenderer.invoke('silent-print', html)
+  }
+})
+

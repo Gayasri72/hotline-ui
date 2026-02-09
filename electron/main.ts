@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -36,10 +36,17 @@ autoUpdater.autoInstallOnAppQuit = true // Install on quit
 // Auto-update event handlers
 autoUpdater.on('checking-for-update', () => {
   console.log('Checking for updates...')
+  if (win) {
+    win.webContents.send('update-checking')
+  }
 })
 
 autoUpdater.on('update-available', (info) => {
   console.log('Update available:', info.version)
+  // Send to renderer for UI display
+  if (win) {
+    win.webContents.send('update-available', info.version)
+  }
   dialog.showMessageBox({
     type: 'info',
     title: 'Update Available',
@@ -54,6 +61,9 @@ autoUpdater.on('update-available', (info) => {
 
 autoUpdater.on('update-not-available', () => {
   console.log('No updates available.')
+  if (win) {
+    win.webContents.send('update-not-available')
+  }
 })
 
 autoUpdater.on('download-progress', (progressObj) => {
@@ -70,6 +80,10 @@ autoUpdater.on('download-progress', (progressObj) => {
 
 autoUpdater.on('update-downloaded', (info) => {
   console.log('Update downloaded:', info.version)
+  // Send to renderer for UI display
+  if (win) {
+    win.webContents.send('update-downloaded', info.version)
+  }
   dialog.showMessageBox({
     type: 'info',
     title: 'Update Ready',
@@ -84,6 +98,9 @@ autoUpdater.on('update-downloaded', (info) => {
 
 autoUpdater.on('error', (error) => {
   console.error('Auto-update error:', error)
+  if (win) {
+    win.webContents.send('update-error', error.message)
+  }
 })
 
 // ============================================
@@ -139,4 +156,47 @@ app.whenReady().then(() => {
       autoUpdater.checkForUpdates()
     }, 3000)
   }
+})
+
+// ============================================
+// SILENT PRINT HANDLER
+// ============================================
+
+ipcMain.handle('silent-print', async (_event, html: string) => {
+  return new Promise((resolve, reject) => {
+    const printWindow = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+      }
+    })
+
+    // Load the HTML content
+    printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+
+    printWindow.webContents.on('did-finish-load', () => {
+      // Print silently to default printer
+      printWindow.webContents.print(
+        { 
+          silent: true, 
+          printBackground: true,
+          margins: { marginType: 'none' }
+        },
+        (success, errorType) => {
+          printWindow.close()
+          if (success) {
+            resolve({ success: true })
+          } else {
+            reject({ success: false, error: errorType })
+          }
+        }
+      )
+    })
+
+    printWindow.webContents.on('did-fail-load', () => {
+      printWindow.close()
+      reject({ success: false, error: 'Failed to load print content' })
+    })
+  })
 })
