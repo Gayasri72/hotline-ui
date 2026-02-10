@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { PERMISSIONS } from "../constants/permission";
@@ -97,9 +97,22 @@ export default function POS(): JSX.Element {
   const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
   const [serialNumberInput, setSerialNumberInput] = useState<string>("");
 
+  // Auto-refresh state
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+  const AUTO_REFRESH_INTERVAL = 60000; // 60 seconds
+
   // Fetch data on mount
   useEffect(() => {
     fetchData();
+  }, []);
+
+  // Auto-refresh: re-fetch products & categories every 60 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshData();
+    }, AUTO_REFRESH_INTERVAL);
+    return () => clearInterval(interval);
   }, []);
 
   // Search input ref
@@ -159,12 +172,35 @@ export default function POS(): JSX.Element {
       if (prodData.status === "success" && prodData.data) {
         setProducts(prodData.data.products || []);
       }
+      setLastRefreshed(new Date());
     } catch (err) {
       console.error("Failed to fetch data:", err);
     } finally {
       setLoading(false);
     }
   };
+
+  // Manual / auto refresh (silent, no loading spinner)
+  const refreshData = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      const [catData, prodData] = await Promise.all([
+        api<CategoriesResponse>("/categories?tree=true"),
+        api<ProductsResponse>("/products"),
+      ]);
+      if (catData.status === "success" && catData.data) {
+        setCategoryTree(catData.data.categories || []);
+      }
+      if (prodData.status === "success" && prodData.data) {
+        setProducts(prodData.data.products || []);
+      }
+      setLastRefreshed(new Date());
+    } catch (err) {
+      console.error("Failed to refresh data:", err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, []);
 
   const fetchSalesData = async () => {
     setSalesLoading(true);
@@ -402,11 +438,7 @@ export default function POS(): JSX.Element {
     (sum, item) => sum + getItemPrice(item) * item.quantity,
     0,
   );
-  const tax = cart.reduce((sum, item) => {
-    const itemTotal = getItemPrice(item) * item.quantity;
-    return sum + itemTotal * ((item.taxRate ?? 0) / 100);
-  }, 0);
-  const total = subtotal + tax;
+  const total = subtotal;
 
   const handleLogout = (): void => {
     logout();
@@ -639,6 +671,32 @@ export default function POS(): JSX.Element {
               </span>
             </button>
           )}
+          <button
+            onClick={refreshData}
+            disabled={isRefreshing}
+            className="relative flex items-center gap-2 px-3 py-2 bg-white/60 hover:bg-emerald-50 border border-emerald-200 rounded-xl text-slate-600 hover:text-emerald-700 transition-all group shadow-sm"
+            title={`Refresh Data (Last: ${lastRefreshed.toLocaleTimeString()})`}
+          >
+            <svg
+              className={`w-4 h-4 group-hover:text-emerald-500 transition-all ${isRefreshing ? 'animate-spin text-emerald-500' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+            <span className="text-xs font-medium hidden xl:block">
+              {isRefreshing ? 'Syncing...' : lastRefreshed.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            </span>
+            {isRefreshing && (
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping"></span>
+            )}
+          </button>
           <button
             onClick={() => navigate("/settings")}
             className="flex items-center gap-2 px-3 py-2 bg-white/60 hover:bg-slate-50 border border-slate-200 rounded-xl text-slate-600 hover:text-slate-700 transition-all group shadow-sm"
@@ -1356,12 +1414,7 @@ export default function POS(): JSX.Element {
                   Rs. {subtotal.toLocaleString()}
                 </span>
               </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-600">Tax</span>
-                <span className="text-slate-700 font-medium">
-                  Rs. {tax.toLocaleString()}
-                </span>
-              </div>
+
               <div className="h-px bg-gradient-to-r from-transparent via-sky-200 to-transparent my-3"></div>
               <div className="flex justify-between items-center">
                 <span className="text-lg font-semibold text-slate-800">
@@ -1418,7 +1471,7 @@ export default function POS(): JSX.Element {
         <PaymentModal
           total={total}
           subtotal={subtotal}
-          tax={tax}
+
           cart={cart}
           canApplyDiscount={canApplyDiscount}
           onClose={() => setShowPaymentModal(false)}

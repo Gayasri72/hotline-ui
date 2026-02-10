@@ -93,10 +93,10 @@ export function ProductDetailModal({
             </div>
             <div className="bg-white/70 rounded-xl p-3 border border-sky-200">
               <p className="text-[10px] text-slate-600 uppercase tracking-wider mb-1">
-                Tax Rate
+                Brand
               </p>
               <p className="text-slate-800 font-medium text-sm">
-                {product?.taxRate ?? 0}%
+                {product?.subcategory?.name || "—"}
               </p>
             </div>
           </div>

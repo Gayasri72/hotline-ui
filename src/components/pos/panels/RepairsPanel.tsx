@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { generateDeviceReceivedReceiptHTML, printReceipt } from "../../../lib/receipt";
+import {
+  generateDeviceReceivedReceiptHTML,
+  printReceipt,
+} from "../../../lib/receipt";
 import type { RepairsPanelProps, RepairJob } from "../../../types/pos";
 
 export function RepairsPanel({
@@ -114,13 +117,14 @@ export function RepairsPanel({
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-md flex items-center justify-center z-50 p-4">
       <div className="bg-white/95 backdrop-blur-xl w-full max-w-5xl max-h-[92vh] border border-sky-200/50 flex flex-col shadow-2xl overflow-hidden rounded-3xl">
         {/* Header */}
-        <div className="relative overflow-hidden bg-white/95 backdrop-blur-xl border-b border-sky-200/50">
-          <div className="relative p-5 flex justify-between items-center">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-sky-400 via-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-sky-500/20">
+        <div className="relative bg-white/95 backdrop-blur-xl border-b border-sky-200/50">
+          <div className="absolute inset-0 bg-gradient-to-r from-sky-500/5 via-blue-500/5 to-sky-500/5"></div>
+          <div className="relative px-6 py-4 flex justify-between items-center">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-sky-400 via-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-sky-500/20 flex-shrink-0">
                 <span className="text-2xl">🔧</span>
               </div>
-              <div>
+              <div className="min-w-0">
                 <h3 className="text-2xl font-bold text-slate-800">
                   Repair Jobs
                 </h3>
@@ -129,10 +133,10 @@ export function RepairsPanel({
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 ml-4 flex-shrink-0 z-10">
               <button
                 onClick={onRefresh}
-                className="p-3 bg-white/60 hover:bg-sky-50 rounded-xl text-slate-500 hover:text-sky-600 transition-all hover:rotate-180 duration-500 border border-sky-200/50 shadow-sm"
+                className="p-2.5 bg-white/60 hover:bg-sky-50 rounded-lg text-slate-500 hover:text-sky-600 transition-all hover:rotate-180 duration-500 border border-sky-200/50 shadow-sm"
                 title="Refresh"
               >
                 <svg
@@ -151,7 +155,8 @@ export function RepairsPanel({
               </button>
               <button
                 onClick={onClose}
-                className="p-3 bg-white/60 hover:bg-red-50 rounded-xl text-slate-500 hover:text-red-500 transition-all border border-sky-200/50 shadow-sm"
+                className="p-2.5 bg-white/60 hover:bg-red-50 rounded-lg text-slate-500 hover:text-red-500 transition-all border border-sky-200/50 shadow-sm"
+                title="Close"
               >
                 <svg
                   className="w-5 h-5"

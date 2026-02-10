@@ -21,7 +21,7 @@ interface SaleData {
   items?: SaleItem[];
   subtotal?: number;
   discountTotal?: number;
-  taxTotal?: number;
+
   grandTotal?: number;
   amountPaid?: number;
   changeGiven?: number;
@@ -157,10 +157,6 @@ export function generateSaleReceiptHTML(sale: SaleData): string {
             <span class="label highlight">Discount</span>
             <span class="value highlight">-${formatCurrency(sale.discountTotal || 0)}</span>
           </div>` : ''}
-          <div class="row">
-            <span class="label">Tax</span>
-            <span class="value">${formatCurrency(sale.taxTotal || 0)}</span>
-          </div>
           <div class="row total">
             <span>TOTAL</span>
             <span>${formatCurrency(sale.grandTotal || 0)}</span>

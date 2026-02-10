@@ -6,7 +6,7 @@ import type { PaymentModalProps } from "../../../types/pos";
 export function PaymentModal({
   total,
   subtotal,
-  tax,
+
   cart,
   canApplyDiscount,
   onClose,
@@ -97,7 +97,7 @@ export function PaymentModal({
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
-      <div className="bg-gradient-to-br from-sky-50 via-white to-blue-50 rounded-3xl w-full max-w-xl border border-sky-200 shadow-2xl overflow-hidden">
+      <div className="bg-gradient-to-br from-sky-50 via-white to-blue-50 rounded-3xl w-full max-w-xl border border-sky-200 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-r from-sky-500/20 via-blue-500/10 to-sky-500/20"></div>
@@ -148,7 +148,7 @@ export function PaymentModal({
           </div>
         </div>
 
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-4 overflow-y-auto flex-1">
           {/* Order Summary Card */}
           <div className="bg-white/70 rounded-2xl p-4 border border-sky-200">
             <div className="space-y-2 text-sm">
@@ -181,12 +181,7 @@ export function PaymentModal({
                   </span>
                 </div>
               )}
-              <div className="flex justify-between items-center">
-                <span className="text-slate-600">Tax</span>
-                <span className="text-slate-800">
-                  Rs. {tax.toLocaleString()}
-                </span>
-              </div>
+
               <div className="h-px bg-gradient-to-r from-transparent via-sky-200 to-transparent my-2"></div>
               <div className="flex justify-between items-center pt-1">
                 <span className="text-lg font-semibold text-slate-800">

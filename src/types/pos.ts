@@ -18,7 +18,7 @@ export interface Product {
   costPrice?: number;
   stock?: number;
   unit?: string;
-  taxRate?: number;
+
   description?: string;
   warrantyDuration?: number;
   warrantyType?: string;
@@ -144,7 +144,7 @@ export interface WarrantySearchResponse {
 export interface PaymentModalProps {
   total: number;
   subtotal: number;
-  tax: number;
+
   cart: CartItem[];
   canApplyDiscount: boolean;
   onClose: () => void;
