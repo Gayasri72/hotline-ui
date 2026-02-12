@@ -6,14 +6,15 @@ import type { PaymentModalProps } from "../../../types/pos";
 export function PaymentModal({
   total,
   subtotal,
-
   cart,
   canApplyDiscount,
   onClose,
   onSuccess,
 }: PaymentModalProps): JSX.Element {
-  const [paymentMethod, setPaymentMethod] = useState<"CASH" | "CARD">("CASH");
+  const [paymentMethod, setPaymentMethod] = useState<"CASH" | "CARD" | "SPLIT">("CASH");
   const [amountReceived, setAmountReceived] = useState<string>("");
+  const [splitCash, setSplitCash] = useState<string>("");
+  const [splitCard, setSplitCard] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const [discountType, setDiscountType] = useState<
@@ -39,11 +40,67 @@ export function PaymentModal({
   const change = parseFloat(amountReceived || "0") - finalTotal;
   const quickAmounts = [100, 500, 1000, 2000, 5000];
 
+  // Split payment calculations
+  const splitCashAmount = parseFloat(splitCash || "0");
+  const splitCardAmount = parseFloat(splitCard || "0");
+  const splitTotal = splitCashAmount + splitCardAmount;
+  const splitChange = splitCashAmount + splitCardAmount - finalTotal;
+  const isSplitValid = splitTotal >= finalTotal && splitCashAmount > 0 && splitCardAmount > 0;
+
+  // Auto-fill remaining for split
+  const handleSplitCashChange = (value: string) => {
+    setSplitCash(value);
+    const cashVal = parseFloat(value || "0");
+    if (cashVal > 0 && cashVal < finalTotal) {
+      setSplitCard(String(Math.ceil(finalTotal - cashVal)));
+    }
+  };
+
+  const handleSplitCardChange = (value: string) => {
+    setSplitCard(value);
+    const cardVal = parseFloat(value || "0");
+    if (cardVal > 0 && cardVal < finalTotal) {
+      setSplitCash(String(Math.ceil(finalTotal - cardVal)));
+    }
+  };
+
+  // Check if payment can proceed
+  const canProceed = () => {
+    if (loading) return false;
+    if (paymentMethod === "CASH") {
+      return parseFloat(amountReceived || "0") >= finalTotal;
+    }
+    if (paymentMethod === "CARD") {
+      return true; // Card always pays exact
+    }
+    if (paymentMethod === "SPLIT") {
+      return isSplitValid;
+    }
+    return false;
+  };
+
   const handlePayment = async (printReceipt: boolean = true): Promise<void> => {
     if (hasWarrantyProducts && !customerPhone.trim()) {
       setError("Customer phone is required for products with warranty");
       setShowCustomerInfo(true);
       return;
+    }
+
+    // Build payments array based on method
+    let payments: { method: string; amount: number }[] = [];
+    if (paymentMethod === "SPLIT") {
+      if (!isSplitValid) {
+        setError("Split amounts must cover the total and both must be greater than 0");
+        return;
+      }
+      payments = [
+        { method: "CASH", amount: splitCashAmount },
+        { method: "CARD", amount: splitCardAmount },
+      ];
+    } else if (paymentMethod === "CASH") {
+      payments = [{ method: "CASH", amount: parseFloat(amountReceived) || finalTotal }];
+    } else {
+      payments = [{ method: "CARD", amount: finalTotal }];
     }
 
     setLoading(true);
@@ -60,12 +117,7 @@ export function PaymentModal({
               unitPrice: item.sellingPrice,
               serialNumber: item.serialNumber,
             })),
-            payments: [
-              {
-                method: paymentMethod,
-                amount: parseFloat(amountReceived) || finalTotal,
-              },
-            ],
+            payments,
             discountType: discountType,
             discountValue: discountValue,
             customer: customerPhone
@@ -80,7 +132,6 @@ export function PaymentModal({
       if (data.status === "success") {
         const sale = data.data?.sale;
         if (printReceipt && sale) {
-          // Generate beautiful receipt HTML and print silently
           const receiptHTML = generateSaleReceiptHTML(sale);
           await silentPrint(receiptHTML);
         }
@@ -99,7 +150,7 @@ export function PaymentModal({
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
       <div className="bg-gradient-to-br from-sky-50 via-white to-blue-50 rounded-3xl w-full max-w-xl border border-sky-200 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="relative overflow-hidden">
+        <div className="relative overflow-hidden flex-shrink-0">
           <div className="absolute inset-0 bg-gradient-to-r from-sky-500/20 via-blue-500/10 to-sky-500/20"></div>
           <div className="relative p-5 flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -181,7 +232,6 @@ export function PaymentModal({
                   </span>
                 </div>
               )}
-
               <div className="h-px bg-gradient-to-r from-transparent via-sky-200 to-transparent my-2"></div>
               <div className="flex justify-between items-center pt-1">
                 <span className="text-lg font-semibold text-slate-800">
@@ -394,15 +444,16 @@ export function PaymentModal({
             <label className="block text-xs text-slate-600 uppercase tracking-wider mb-2">
               Payment Method
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-2">
               {[
                 { method: "CASH" as const, icon: "💵", label: "Cash" },
                 { method: "CARD" as const, icon: "💳", label: "Card" },
+                { method: "SPLIT" as const, icon: "🔀", label: "Split" },
               ].map(({ method, icon, label }) => (
                 <button
                   key={method}
                   onClick={() => setPaymentMethod(method)}
-                  className={`py-3.5 rounded-xl font-medium transition-all flex flex-col items-center gap-1 ${paymentMethod === method ? "bg-gradient-to-r from-sky-500 to-blue-500 text-white shadow-lg shadow-sky-500/25" : "bg-white text-slate-600 hover:bg-sky-50 border border-sky-200"}`}
+                  className={`py-3 rounded-xl font-medium transition-all flex flex-col items-center gap-1 ${paymentMethod === method ? "bg-gradient-to-r from-sky-500 to-blue-500 text-white shadow-lg shadow-sky-500/25" : "bg-white text-slate-600 hover:bg-sky-50 border border-sky-200"}`}
                 >
                   <span className="text-xl">{icon}</span>
                   <span className="text-sm">{label}</span>
@@ -483,15 +534,118 @@ export function PaymentModal({
             </>
           )}
 
+          {/* Split Payment Options */}
+          {paymentMethod === "SPLIT" && (
+            <div className="space-y-3">
+              <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-3 border border-purple-200/50">
+                <p className="text-xs text-purple-600 font-medium flex items-center gap-1.5">
+                  <span>🔀</span>
+                  Split payment between Cash and Card
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {/* Cash portion */}
+                <div>
+                  <label className="block text-xs text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <span>💵</span> Cash Amount
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">
+                      Rs.
+                    </span>
+                    <input
+                      type="number"
+                      value={splitCash}
+                      onChange={(e) => handleSplitCashChange(e.target.value)}
+                      className={`w-full pl-10 pr-3 py-3.5 bg-white rounded-xl text-slate-800 text-xl text-center font-bold border-2 transition-all focus:outline-none ${splitCashAmount > 0 ? "border-emerald-400/50 focus:border-emerald-500" : "border-sky-200 focus:border-sky-500"}`}
+                      placeholder="0"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+
+                {/* Card portion */}
+                <div>
+                  <label className="block text-xs text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <span>💳</span> Card Amount
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">
+                      Rs.
+                    </span>
+                    <input
+                      type="number"
+                      value={splitCard}
+                      onChange={(e) => handleSplitCardChange(e.target.value)}
+                      className={`w-full pl-10 pr-3 py-3.5 bg-white rounded-xl text-slate-800 text-xl text-center font-bold border-2 transition-all focus:outline-none ${splitCardAmount > 0 ? "border-blue-400/50 focus:border-blue-500" : "border-sky-200 focus:border-sky-500"}`}
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick split buttons */}
+              <div>
+                <label className="block text-xs text-slate-600 uppercase tracking-wider mb-2">
+                  Quick Split
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: "50/50", cash: 0.5, card: 0.5 },
+                    { label: "70/30", cash: 0.7, card: 0.3 },
+                    { label: "30/70", cash: 0.3, card: 0.7 },
+                  ].map(({ label, cash, card }) => (
+                    <button
+                      key={label}
+                      onClick={() => {
+                        setSplitCash(String(Math.ceil(finalTotal * cash)));
+                        setSplitCard(String(Math.ceil(finalTotal * card)));
+                      }}
+                      className="py-2 rounded-lg text-xs font-medium text-slate-600 bg-white hover:bg-sky-50 border border-sky-200 transition-all"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Split summary */}
+              <div className={`p-3 rounded-xl border ${isSplitValid ? "bg-emerald-50/50 border-emerald-300/50" : splitTotal > 0 ? "bg-amber-50/50 border-amber-300/50" : "bg-white/50 border-sky-200"}`}>
+                <div className="flex justify-between items-center text-sm mb-1">
+                  <span className="text-slate-600">💵 Cash</span>
+                  <span className="font-medium text-slate-800">Rs. {splitCashAmount.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm mb-1">
+                  <span className="text-slate-600">💳 Card</span>
+                  <span className="font-medium text-slate-800">Rs. {splitCardAmount.toLocaleString()}</span>
+                </div>
+                <div className="h-px bg-slate-200 my-1.5"></div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="font-semibold text-slate-800">Total Paid</span>
+                  <span className={`font-bold ${isSplitValid ? "text-emerald-600" : splitTotal < finalTotal ? "text-amber-600" : "text-slate-800"}`}>
+                    Rs. {splitTotal.toLocaleString()}
+                  </span>
+                </div>
+                {splitTotal < finalTotal && splitTotal > 0 && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    ⚠️ Short by Rs. {(finalTotal - splitTotal).toLocaleString()}
+                  </p>
+                )}
+                {splitChange > 0 && isSplitValid && (
+                  <p className="text-xs text-sky-600 mt-1 font-medium">
+                    💰 Change: Rs. {splitChange.toLocaleString()}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div className="grid grid-cols-2 gap-3 pt-2">
             <button
               onClick={() => handlePayment(false)}
-              disabled={
-                loading ||
-                (paymentMethod === "CASH" &&
-                  parseFloat(amountReceived || "0") < finalTotal)
-              }
+              disabled={!canProceed()}
               className="py-4 bg-white hover:bg-slate-50 text-slate-800 font-semibold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed border border-sky-200 transition-all flex items-center justify-center gap-2"
             >
               {loading ? (
@@ -520,11 +674,7 @@ export function PaymentModal({
             </button>
             <button
               onClick={() => handlePayment(true)}
-              disabled={
-                loading ||
-                (paymentMethod === "CASH" &&
-                  parseFloat(amountReceived || "0") < finalTotal)
-              }
+              disabled={!canProceed()}
               className="py-4 bg-gradient-to-r from-sky-500 to-blue-500 hover:from-sky-400 hover:to-blue-400 text-white font-semibold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-sky-500/25 hover:shadow-sky-500/40 flex items-center justify-center gap-2"
             >
               {loading ? (

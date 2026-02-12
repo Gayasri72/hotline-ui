@@ -19,6 +19,8 @@ export interface KeyboardShortcuts {
   openRepairs: string;
   openSales: string;
   focusSearch: string;
+  printLastReceipt: string;
+  openSettings: string;
   logout: string;
 }
 
@@ -40,6 +42,8 @@ export const DEFAULT_KEYBOARD_SHORTCUTS: KeyboardShortcuts = {
   openRepairs: "F3",
   openSales: "F4",
   focusSearch: "F5",
+  printLastReceipt: "F9",
+  openSettings: "F10",
   logout: "F12",
 };
 
@@ -137,5 +141,7 @@ export const SHORTCUT_LABELS: Record<keyof KeyboardShortcuts, string> = {
   openRepairs: "Open Repairs Panel",
   openSales: "Open Sales Panel",
   focusSearch: "Focus Search Box",
+  printLastReceipt: "Print Last Receipt",
+  openSettings: "Open Settings",
   logout: "Logout",
 };

@@ -40,6 +40,7 @@ interface RepairData {
   advancePayment?: number;
   amountReceived?: number;
   change?: number;
+  payments?: { method: string; amount: number }[];
 }
 
 interface DeviceReceivedData {
@@ -178,6 +179,7 @@ export function generateSaleReceiptHTML(sale: SaleData): string {
         <div class="footer">
           <div class="thanks">Thank you for your visit! 💙</div>
           <div>${shopFooter || 'Come again soon'}</div>
+          <div style="margin-top: 2mm; font-size: 9px; color: #888;">System by Pixzoralabs</div>
         </div>
       </div>
     </body>
@@ -269,11 +271,26 @@ export function generateRepairReceiptHTML(repair: RepairData): string {
           <div class="row">
             <span class="label highlight">Advance Paid</span>
             <span class="value highlight">-${formatCurrency(repair.advancePayment || 0)}</span>
-          </div>` : ''}
-          <div class="row">
-            <span class="label">Amount Received</span>
-            <span class="value">${formatCurrency(repair.amountReceived || 0)}</span>
           </div>
+          <div class="row">
+            <span class="label">Balance Due</span>
+            <span class="value">${formatCurrency(Math.max(0, (repair.totalCost || 0) - (repair.advancePayment || 0)))}</span>
+          </div>` : ''}
+          ${repair.payments && repair.payments.length > 1 ? `
+          <div class="section-title">Payment Split</div>
+          ${repair.payments.map(p => `
+          <div class="row">
+            <span class="label">${p.method === 'CASH' ? '💵 Cash' : p.method === 'CARD' ? '💳 Card' : p.method}</span>
+            <span class="value">${formatCurrency(p.amount)}</span>
+          </div>`).join('')}
+          <div class="row">
+            <span class="label">Total Paid</span>
+            <span class="value">${formatCurrency(repair.amountReceived || 0)}</span>
+          </div>` : `
+          <div class="row">
+            <span class="label">${repair.payments?.[0]?.method === 'CARD' ? '💳 Card Payment' : '💵 Cash Received'}</span>
+            <span class="value">${formatCurrency(repair.amountReceived || 0)}</span>
+          </div>`}
           ${(repair.change || 0) > 0 ? `
           <div class="row">
             <span class="label">Change</span>
@@ -284,6 +301,7 @@ export function generateRepairReceiptHTML(repair: RepairData): string {
         <div class="footer">
           <div class="thanks">Thank you for choosing us! 💙</div>
           <div>${shopFooter || 'Quality repairs, always'}</div>
+          <div style="margin-top: 2mm; font-size: 9px; color: #888;">System by Pixzoralabs</div>
         </div>
       </div>
     </body>
@@ -395,7 +413,8 @@ export function generateDeviceReceivedReceiptHTML(repair: DeviceReceivedData): s
 
         <div class="footer">
           <div class="thanks">📋 Please keep this slip safe</div>
-          <div>Present it when collecting your device</div>
+          <div>Please bring this receipt for collection.</div>
+          <div style="margin-top: 2mm; font-size: 9px; color: #888;">System by Pixzoralabs</div>
         </div>
       </div>
     </body>

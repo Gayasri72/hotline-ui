@@ -3,33 +3,127 @@ import { api } from "../../../lib/api";
 import { generateRepairReceiptHTML, printReceipt as silentPrint } from "../../../lib/receipt";
 import type { RepairPaymentModalProps } from "../../../types/pos";
 
+type PaymentMode = "CASH" | "CARD" | "SPLIT";
+
 export function RepairPaymentModal({
   repair,
   canCollectPayment,
   onClose,
   onSuccess,
 }: RepairPaymentModalProps): JSX.Element {
-  const [paymentMethod, setPaymentMethod] = useState<"CASH" | "CARD">("CASH");
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>("CASH");
   const [amountReceived, setAmountReceived] = useState<string>("");
+  const [cashAmount, setCashAmount] = useState<string>("");
+  const [cardAmount, setCardAmount] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const [showSuccess, setShowSuccess] = useState<boolean>(false);
 
   const totalCost = repair.totalCost || 0;
+  const laborCost = repair.laborCost || 0;
+  const partsTotal = repair.partsTotal || 0;
   const advancePaid = repair.advancePayment || 0;
   const balanceDue = Math.max(0, totalCost - advancePaid);
-  const change = parseFloat(amountReceived || "0") - balanceDue;
-  const isValidAmount = parseFloat(amountReceived || "0") >= balanceDue;
+  const partsUsed = repair.partsUsed || [];
+
+  // Calculate totals based on mode
+  const getTotalPaid = (): number => {
+    if (paymentMode === "SPLIT") {
+      return (parseFloat(cashAmount) || 0) + (parseFloat(cardAmount) || 0);
+    }
+    return parseFloat(amountReceived) || 0;
+  };
+
+  // Sanitize: prevent negative, NaN, or excessively large values
+  const sanitizeAmount = (val: string): string => {
+    if (val === '' || val === '-') return '';
+    const num = parseFloat(val);
+    if (isNaN(num) || num < 0) return '';
+    if (num > 9999999) return '9999999';
+    return val;
+  };
+
+  const totalPaid = getTotalPaid();
+  const change = paymentMode === "CASH" ? Math.max(0, totalPaid - balanceDue) : 0;
+  const isValidAmount = paymentMode === "SPLIT"
+    ? totalPaid >= balanceDue && (parseFloat(cashAmount) || 0) > 0 && (parseFloat(cardAmount) || 0) > 0
+    : totalPaid >= balanceDue;
+
+  // Inline validation messages
+  const getAmountError = (): string => {
+    if (paymentMode === "SPLIT") {
+      const cash = parseFloat(cashAmount) || 0;
+      const card = parseFloat(cardAmount) || 0;
+      if ((cashAmount || cardAmount) && cash <= 0 && card <= 0) return "Both amounts must be greater than zero";
+      if (cashAmount && cash <= 0) return "Cash amount must be greater than zero";
+      if (cardAmount && card <= 0) return "Card amount must be greater than zero";
+      if (cash > 0 && card > 0 && (cash + card) < balanceDue) return `Total must be at least Rs. ${balanceDue.toLocaleString()}`;
+      return '';
+    }
+    if (amountReceived && totalPaid > 0 && totalPaid < balanceDue) {
+      return `Amount must be at least Rs. ${balanceDue.toLocaleString()}`;
+    }
+    return '';
+  };
+  const amountError = getAmountError();
 
   const getQuickAmounts = () => {
-    const base = [100, 500, 1000, 2000, 5000];
+    const base = [500, 1000, 2000, 3000, 5000];
     if (balanceDue > 0 && !base.includes(Math.ceil(balanceDue))) {
-      return [
-        Math.ceil(balanceDue),
-        ...base.filter((a) => a !== Math.ceil(balanceDue)),
-      ].slice(0, 5);
+      return [Math.ceil(balanceDue), ...base.filter((a) => a !== Math.ceil(balanceDue))].slice(0, 5);
     }
     return base;
+  };
+
+  // Build payments array for API
+  const buildPayments = () => {
+    if (paymentMode === "SPLIT") {
+      const payments = [];
+      const cash = parseFloat(cashAmount) || 0;
+      const card = parseFloat(cardAmount) || 0;
+      if (cash > 0) payments.push({ method: "CASH", amount: cash });
+      if (card > 0) payments.push({ method: "CARD", amount: card });
+      return payments;
+    }
+    return [{ method: paymentMode, amount: totalPaid }];
+  };
+
+  // Handle amount input with validation
+  const handleAmountChange = (val: string) => {
+    setAmountReceived(sanitizeAmount(val));
+  };
+
+  // Handle split amount auto-fill
+  const handleCashChange = (val: string) => {
+    const sanitized = sanitizeAmount(val);
+    setCashAmount(sanitized);
+    const c = parseFloat(sanitized) || 0;
+    if (c > 0 && c < balanceDue) {
+      setCardAmount(String(Math.round((balanceDue - c) * 100) / 100));
+    }
+  };
+
+  const handleCardChange = (val: string) => {
+    const sanitized = sanitizeAmount(val);
+    setCardAmount(sanitized);
+    const c = parseFloat(sanitized) || 0;
+    if (c > 0 && c < balanceDue) {
+      setCashAmount(String(Math.round((balanceDue - c) * 100) / 100));
+    }
+  };
+
+  // When switching to Card mode, auto-set exact amount
+  const handleModeChange = (mode: PaymentMode) => {
+    setPaymentMode(mode);
+    setError('');
+    if (mode === 'CARD') {
+      setAmountReceived(String(balanceDue));
+    } else if (mode === 'SPLIT') {
+      setCashAmount('');
+      setCardAmount('');
+    } else {
+      setAmountReceived('');
+    }
   };
 
   const handlePayment = async (printReceipt: boolean = true): Promise<void> => {
@@ -38,37 +132,35 @@ export function RepairPaymentModal({
       return;
     }
     if (!isValidAmount) {
-      setError("Amount received is less than balance due");
+      setError("Amount is insufficient or invalid");
       return;
     }
 
     setLoading(true);
     setError("");
     try {
+      const payments = buildPayments();
       const res = await api<{ status: string; message?: string; data?: any }>(
         `/repairs/${repair._id}/payment`,
         {
           method: "PUT",
-          body: JSON.stringify({
-            amount: parseFloat(amountReceived),
-            paymentMethod: paymentMethod,
-          }),
+          body: JSON.stringify({ payments }),
         },
       );
       if (res.status === "success") {
         if (printReceipt) {
-          // Generate beautiful receipt HTML and print silently
           const receiptHTML = generateRepairReceiptHTML({
             ...repair,
             totalCost,
             advancePayment: advancePaid,
-            amountReceived: parseFloat(amountReceived),
+            amountReceived: totalPaid,
             change: change > 0 ? change : 0,
+            payments,
           });
           await silentPrint(receiptHTML);
         }
         setShowSuccess(true);
-        setTimeout(() => onSuccess(), 2000);
+        setTimeout(() => onSuccess(), 1500);
       } else {
         setError(res.message || "Payment failed");
       }
@@ -81,342 +173,288 @@ export function RepairPaymentModal({
 
   if (showSuccess) {
     return (
-      <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50">
-        <div className="bg-gradient-to-br from-sky-50 via-white to-blue-50 rounded-3xl p-8 w-full max-w-md border border-sky-200 shadow-2xl text-center">
-          <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-sky-400 to-blue-400 flex items-center justify-center animate-bounce">
-            <svg
-              className="w-12 h-12 text-white"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={3}
-                d="M5 13l4 4L19 7"
-              />
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+        <div className="bg-white rounded-2xl p-8 w-full max-w-sm shadow-2xl text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-100 flex items-center justify-center">
+            <svg className="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h3 className="text-3xl font-bold text-slate-800 mb-2">
-            Payment Complete!
-          </h3>
-          <p className="text-sky-600 text-lg mb-6">Transaction successful</p>
-
-          <div className="bg-white/70 rounded-2xl p-4 mb-6 text-left space-y-2 border border-sky-200">
+          <h3 className="text-xl font-bold text-slate-900 mb-1">Payment Successful</h3>
+          <p className="text-slate-500 mb-4">Repair completed & recorded.</p>
+          <div className="bg-slate-50 rounded-xl p-3 text-sm space-y-2 text-left border border-slate-100">
             <div className="flex justify-between">
-              <span className="text-slate-600">Job Number</span>
-              <span className="text-slate-800 font-medium">
-                {repair.jobNumber}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-600">Customer</span>
-              <span className="text-slate-800 font-medium">
-                {repair.customer.name}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-600">Amount Paid</span>
-              <span className="text-sky-600 font-bold">
-                Rs. {parseFloat(amountReceived).toLocaleString()}
-              </span>
+              <span className="text-slate-500">Total Paid</span>
+              <span className="font-semibold text-slate-900">Rs. {totalPaid.toLocaleString()}</span>
             </div>
             {change > 0 && (
-              <div className="flex justify-between pt-2 border-t border-sky-200">
-                <span className="text-slate-600">Change</span>
-                <span className="text-amber-600 font-bold">
-                  Rs. {change.toFixed(2)}
-                </span>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Change</span>
+                <span className="font-semibold text-emerald-600">Rs. {change.toFixed(2)}</span>
               </div>
             )}
           </div>
-
-          <p className="text-slate-600 text-sm">Closing automatically...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
-      <div className="bg-gradient-to-br from-sky-50 via-white to-blue-50 rounded-3xl w-full max-w-xl border border-sky-200 shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
-        <div className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-r from-sky-500/20 via-blue-500/10 to-sky-500/20"></div>
-          <div className="relative p-5 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center shadow-lg shadow-sky-500/30">
-                <span className="text-2xl">💵</span>
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-slate-800">
-                  Collect Payment
-                </h3>
-                <p className="text-slate-600 text-sm">
-                  {repair.jobNumber} • {repair.customer.name}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={onClose}
-              className="p-3 bg-white/50 hover:bg-red-500/30 rounded-xl text-slate-600 hover:text-red-400 transition-all border border-sky-200"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
+        <div className="bg-gradient-to-r from-slate-50 to-slate-100 px-6 py-4 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
+          <div>
+            <h3 className="text-lg font-bold text-slate-800">Collect Payment</h3>
+            <p className="text-slate-500 text-sm">{repair.jobNumber} • {repair.customer.name}</p>
           </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors p-2 rounded-full hover:bg-white">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
-        <div className="p-5 space-y-4">
-          {/* Device Info */}
-          <div className="bg-white/70 rounded-2xl p-4 border border-sky-200">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-sky-100 to-blue-100 flex items-center justify-center text-2xl border border-sky-200">
-                📱
-              </div>
-              <div className="flex-1">
-                <p className="text-slate-800 font-semibold">
-                  {repair.device.brand} {repair.device.model}
-                </p>
-                <p className="text-slate-600 text-sm">
-                  {repair.problemDescription?.slice(0, 50) || "Device repair"}
-                </p>
-                <div className="flex items-center gap-3 mt-1">
-                  <span className="text-xs text-slate-600">
-                    Technician: {repair.assignedTo?.username || "N/A"}
-                  </span>
-                  <span className="px-2 py-0.5 bg-sky-100 text-sky-700 rounded text-xs border border-sky-200">
-                    ✓ Ready
-                  </span>
+        <div className="p-6 overflow-y-auto flex-1 space-y-5">
+          {/* === COST BREAKDOWN === */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Cost Breakdown</h4>
+
+            {/* Parts Used */}
+            {partsUsed.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs text-slate-400 uppercase tracking-wider mb-1.5">Parts Used</p>
+                <div className="space-y-1">
+                  {partsUsed.map((part, i) => (
+                    <div key={i} className="flex justify-between items-center text-sm">
+                      <span className="text-slate-700">{part.productName} <span className="text-slate-400">×{part.quantity}</span></span>
+                      <span className="text-slate-800 font-medium">Rs. {part.total.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-between items-center text-sm mt-2 pt-2 border-t border-slate-200">
+                  <span className="text-slate-600 font-medium">Parts Total</span>
+                  <span className="text-slate-800 font-semibold">Rs. {partsTotal.toLocaleString()}</span>
                 </div>
               </div>
+            )}
+
+            {/* Labor Cost */}
+            <div className="flex justify-between items-center text-sm py-1">
+              <span className="text-slate-600 font-medium">Labor Cost</span>
+              <span className="text-slate-800 font-semibold">Rs. {laborCost.toLocaleString()}</span>
+            </div>
+
+            {/* Total */}
+            <div className="flex justify-between items-center mt-2 pt-2 border-t border-slate-300">
+              <span className="text-slate-800 font-bold">Total Repair Cost</span>
+              <span className="text-slate-900 font-bold text-lg">Rs. {totalCost.toLocaleString()}</span>
+            </div>
+
+            {/* Advance */}
+            {advancePaid > 0 && (
+              <div className="flex justify-between items-center mt-2 text-sm text-emerald-700">
+                <span className="flex items-center gap-1">✓ Advance Paid</span>
+                <span className="font-medium">- Rs. {advancePaid.toLocaleString()}</span>
+              </div>
+            )}
+
+            {/* Balance Due */}
+            <div className="flex justify-between items-center mt-3 pt-3 border-t-2 border-blue-200 bg-blue-50 -mx-4 -mb-4 px-4 py-3 rounded-b-xl">
+              <span className="text-blue-800 font-bold text-sm uppercase tracking-wider">Balance Due</span>
+              <span className="text-2xl font-bold text-blue-700">Rs. {balanceDue.toLocaleString()}</span>
             </div>
           </div>
 
-          {/* Cost Breakdown */}
-          <div className="bg-white/70 rounded-2xl p-4 border border-sky-200">
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div className="bg-sky-50 rounded-xl p-3 text-center border border-sky-200">
-                <p className="text-xs text-slate-600 uppercase tracking-wider mb-1">
-                  Labor
-                </p>
-                <p className="text-lg font-semibold text-slate-800">
-                  Rs. {(repair.laborCost || 0).toLocaleString()}
-                </p>
-              </div>
-              <div className="bg-sky-50 rounded-xl p-3 text-center border border-sky-200">
-                <p className="text-xs text-slate-600 uppercase tracking-wider mb-1">
-                  Parts
-                </p>
-                <p className="text-lg font-semibold text-slate-800">
-                  Rs. {(repair.partsTotal || 0).toLocaleString()}
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between items-center py-2 border-t border-sky-200">
-                <span className="text-slate-600">Total Cost</span>
-                <span className="text-slate-800 font-semibold">
-                  Rs. {totalCost.toLocaleString()}
-                </span>
-              </div>
-              {advancePaid > 0 && (
-                <div className="flex justify-between items-center">
-                  <span className="text-sky-600 flex items-center gap-2">
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                    Advance Paid
-                  </span>
-                  <span className="text-sky-600 font-semibold">
-                    - Rs. {advancePaid.toLocaleString()}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <div className="mt-4 pt-4 border-t border-sky-200">
-              <div className="flex justify-between items-center">
-                <span className="text-lg text-slate-700">Balance Due</span>
-                <span className="text-3xl font-bold bg-gradient-to-r from-sky-500 to-blue-500 bg-clip-text text-transparent">
-                  Rs. {balanceDue.toLocaleString()}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Payment Method */}
+          {/* === PAYMENT METHOD === */}
           <div>
-            <label className="block text-xs text-slate-600 uppercase tracking-wider mb-2">
-              Payment Method
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              {(
-                [
-                  { method: "CASH", icon: "💵", label: "Cash" },
-                  { method: "CARD", icon: "💳", label: "Card" },
-                ] as const
-              ).map(({ method, icon, label }) => (
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Payment Method</label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { mode: "CASH" as PaymentMode, icon: "💵", label: "Cash" },
+                { mode: "CARD" as PaymentMode, icon: "💳", label: "Card" },
+                { mode: "SPLIT" as PaymentMode, icon: "🔀", label: "Split" },
+              ].map(({ mode, icon, label }) => (
                 <button
-                  key={method}
-                  onClick={() => setPaymentMethod(method)}
-                  className={`py-3 rounded-xl font-medium transition-all flex flex-col items-center gap-1 ${paymentMethod === method ? "bg-gradient-to-r from-sky-500 to-blue-500 text-white shadow-lg shadow-sky-500/25" : "bg-white text-slate-600 hover:bg-sky-50 border border-sky-200"}`}
+                  key={mode}
+                  onClick={() => handleModeChange(mode)}
+                  className={`py-2.5 px-3 rounded-lg border text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                    paymentMode === mode
+                      ? "bg-slate-800 text-white border-slate-800 shadow-sm"
+                      : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
+                  }`}
                 >
-                  <span className="text-xl">{icon}</span>
-                  <span className="text-sm">{label}</span>
+                  <span>{icon}</span> {label}
                 </button>
               ))}
             </div>
           </div>
 
-          {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm flex items-center gap-2">
-              <svg
-                className="w-5 h-5 flex-shrink-0"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+          {/* === AMOUNT INPUT === */}
+          {paymentMode !== "SPLIT" ? (
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                {paymentMode === "CASH" ? "Amount Received" : "Amount to Charge"}
+              </label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-lg font-medium">Rs.</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={amountReceived}
+                  onChange={(e) => handleAmountChange(e.target.value)}
+                  className={`w-full pl-14 pr-4 py-3.5 bg-white border-2 rounded-xl text-2xl font-bold text-center focus:outline-none transition-all ${
+                    amountError
+                      ? "border-red-300 focus:border-red-500"
+                      : "border-slate-200 focus:border-blue-500"
+                  }`}
+                  placeholder="0"
+                  autoFocus
                 />
+                {amountError && (
+                  <p className="text-red-500 text-xs mt-1.5">{amountError}</p>
+                )}
+                {paymentMode === "CARD" && balanceDue > 0 && (
+                  <button
+                    onClick={() => setAmountReceived(String(balanceDue))}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-medium rounded-lg transition-colors"
+                  >Exact</button>
+                )}
+              </div>
+
+              {/* Quick Amounts (Cash only) */}
+              {paymentMode === "CASH" && (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {getQuickAmounts().map((amt) => (
+                    <button
+                      key={amt}
+                      onClick={() => setAmountReceived(String(amt))}
+                      className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+                        parseFloat(amountReceived) === amt
+                          ? "bg-blue-50 border-blue-500 text-blue-700"
+                          : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                      }`}
+                    >
+                      {amt >= 1000 ? `${amt / 1000}K` : amt}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* SPLIT PAYMENT */
+            <div className="space-y-3">
+              {/* Quick Split Buttons */}
+              <div className="flex gap-2">
+                {[
+                  { label: "50 / 50", cash: 0.5, card: 0.5 },
+                  { label: "70 / 30", cash: 0.7, card: 0.3 },
+                  { label: "30 / 70", cash: 0.3, card: 0.7 },
+                ].map(({ label, cash, card }) => (
+                  <button
+                    key={label}
+                    onClick={() => {
+                      setCashAmount(String(Math.round(balanceDue * cash)));
+                      setCardAmount(String(Math.round(balanceDue * card)));
+                    }}
+                    className="flex-1 py-2 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Cash Input */}
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">💵 Cash Amount</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">Rs.</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={cashAmount}
+                    onChange={(e) => handleCashChange(e.target.value)}
+                    className={`w-full pl-12 pr-4 py-3 bg-white border-2 rounded-xl text-lg font-bold focus:outline-none transition-all ${
+                      cashAmount && (parseFloat(cashAmount) || 0) <= 0 ? 'border-red-300 focus:border-red-500' : 'border-slate-200 focus:border-blue-500'
+                    }`}
+                    placeholder="0"
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              {/* Card Input */}
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">💳 Card Amount</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm">Rs.</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={cardAmount}
+                    onChange={(e) => handleCardChange(e.target.value)}
+                    className={`w-full pl-12 pr-4 py-3 bg-white border-2 rounded-xl text-lg font-bold focus:outline-none transition-all ${
+                      cardAmount && (parseFloat(cardAmount) || 0) <= 0 ? 'border-red-300 focus:border-red-500' : 'border-slate-200 focus:border-blue-500'
+                    }`}
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+
+              {/* Split Summary */}
+              {totalPaid > 0 && (
+                <div className={`p-3 rounded-xl border text-sm ${
+                  isValidAmount ? "bg-emerald-50 border-emerald-200" : "bg-amber-50 border-amber-200"
+                }`}>
+                  <div className="flex justify-between">
+                    <span className="text-slate-600">Cash + Card</span>
+                    <span className="font-semibold">Rs. {totalPaid.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between mt-1">
+                    <span className="text-slate-500 text-xs">Balance Due</span>
+                    <span className="text-xs font-medium">Rs. {balanceDue.toLocaleString()}</span>
+                  </div>
+                  {!isValidAmount && (
+                    <p className="text-amber-700 text-xs mt-1">⚠ Both amounts must be &gt; 0 and total must cover balance due</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* CHANGE (Cash mode) */}
+          {paymentMode === "CASH" && isValidAmount && amountReceived && change > 0 && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex justify-between items-center">
+              <span className="text-emerald-800 font-medium text-sm">Change to Return</span>
+              <span className="text-xl font-bold text-emerald-700">Rs. {change.toFixed(2)}</span>
+            </div>
+          )}
+
+          {/* ERROR */}
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm flex items-center gap-2">
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               {error}
             </div>
           )}
 
-          {/* Quick Amounts */}
-          {paymentMethod === "CASH" && (
-            <div>
-              <label className="block text-xs text-slate-600 uppercase tracking-wider mb-2">
-                Quick Select
-              </label>
-              <div className="grid grid-cols-5 gap-2">
-                {getQuickAmounts().map((amt) => (
-                  <button
-                    key={amt}
-                    onClick={() => setAmountReceived(String(amt))}
-                    className={`py-2.5 rounded-xl text-sm font-medium transition-all ${parseFloat(amountReceived) === amt ? "bg-sky-500/20 text-sky-600 border border-sky-500/50" : "bg-white text-slate-600 hover:bg-sky-50 border border-sky-200"}`}
-                  >
-                    {amt >= 1000 ? `${amt / 1000}K` : amt}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Amount Input */}
-          <div>
-            <label className="block text-xs text-slate-600 uppercase tracking-wider mb-2">
-              {paymentMethod === "CASH"
-                ? "Amount Received"
-                : "Amount to Charge"}
-            </label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 text-xl">
-                Rs.
-              </span>
-              <input
-                type="number"
-                value={amountReceived}
-                onChange={(e) => setAmountReceived(e.target.value)}
-                className={`w-full pl-14 pr-4 py-4 bg-white rounded-2xl text-slate-800 text-3xl text-center font-bold border-2 transition-all ${amountReceived && isValidAmount ? "border-sky-500/50 focus:border-sky-500" : amountReceived && !isValidAmount ? "border-red-500/50 focus:border-red-500" : "border-sky-200 focus:border-sky-500"}`}
-                placeholder="0"
-                autoFocus
-              />
-              {paymentMethod !== "CASH" && balanceDue > 0 && (
-                <button
-                  onClick={() => setAmountReceived(String(balanceDue))}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-sky-500/20 hover:bg-sky-500/30 text-sky-600 text-sm rounded-lg transition-all"
-                >
-                  Exact
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Change Display */}
-          {paymentMethod === "CASH" && isValidAmount && amountReceived && (
-            <div className="p-4 bg-gradient-to-r from-sky-500/10 to-blue-500/10 border border-sky-500/30 rounded-2xl">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-sky-500/20 flex items-center justify-center">
-                    <svg
-                      className="w-5 h-5 text-sky-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                  </div>
-                  <span className="text-sky-700 font-medium">
-                    Change to Return
-                  </span>
-                </div>
-                <span className="text-3xl font-bold text-sky-600">
-                  Rs. {change.toFixed(2)}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Action Buttons */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* ACTIONS */}
+          <div className="grid grid-cols-2 gap-3 pt-1">
             <button
               onClick={() => handlePayment(false)}
-              disabled={
-                loading ||
-                !canCollectPayment ||
-                !isValidAmount ||
-                !amountReceived
-              }
-              className="py-4 bg-white hover:bg-slate-50 text-slate-800 font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed border border-sky-200 transition-all flex items-center justify-center gap-2"
+              disabled={loading || !canCollectPayment || !isValidAmount || totalPaid <= 0}
+              className="py-3 px-4 bg-white border border-slate-300 text-slate-700 font-medium rounded-xl hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
             >
-              {loading ? "⏳ Processing..." : "Complete Only"}
+              {loading ? "Processing..." : "Complete Only"}
             </button>
             <button
               onClick={() => handlePayment(true)}
-              disabled={
-                loading ||
-                !canCollectPayment ||
-                !isValidAmount ||
-                !amountReceived
-              }
-              className="py-4 bg-gradient-to-r from-sky-500 to-blue-500 text-white font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:shadow-lg flex items-center justify-center gap-2"
+              disabled={loading || !canCollectPayment || !isValidAmount || totalPaid <= 0}
+              className="py-3 px-4 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-colors text-sm"
             >
-              {loading ? "⏳ Processing..." : "✅ Complete & Print"}
+              {loading ? "Processing..." : "Complete & Print"}
             </button>
           </div>
         </div>

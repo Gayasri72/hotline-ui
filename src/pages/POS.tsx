@@ -4,6 +4,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { PERMISSIONS } from "../constants/permission";
 import { api } from "../lib/api";
 import { getKeyboardShortcuts } from "../lib/settings";
+import { generateSaleReceiptHTML, printReceipt } from "../lib/receipt";
 
 // Import types from centralized types file
 import {
@@ -118,9 +119,11 @@ export default function POS(): JSX.Element {
   // Search input ref
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+
+
   // Keyboard shortcuts handler
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = async (e: KeyboardEvent) => {
       // Don't trigger shortcuts when typing in input fields
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
@@ -150,6 +153,37 @@ export default function POS(): JSX.Element {
       } else if (key === shortcuts.focusSearch.toUpperCase()) {
         e.preventDefault();
         searchInputRef.current?.focus();
+      } else if (key === shortcuts.openSettings.toUpperCase()) {
+        e.preventDefault();
+        navigate("/settings");
+      } else if (key === shortcuts.printLastReceipt.toUpperCase()) {
+        e.preventDefault();
+        // Fetch last sale and print
+        try {
+            const res = await api<any>("/sales?limit=1");
+            if (res.status === "success" && res.data?.sales?.length > 0) {
+                const lastSale = res.data.sales[0];
+                const receiptHTML = generateSaleReceiptHTML({
+                    saleNumber: lastSale.saleNumber,
+                    items: lastSale.items.map((i: any) => ({
+                        productName: i.product?.name || "Unknown Item",
+                        quantity: i.quantity,
+                        unitPrice: i.price,
+                        total: i.total
+                    })),
+                    subtotal: lastSale.subtotal,
+                    discountTotal: lastSale.discount,
+                    grandTotal: lastSale.total,
+                    amountPaid: lastSale.payment?.amount || lastSale.total,
+                    changeGiven: lastSale.payment?.change || 0
+                });
+                await printReceipt(receiptHTML);
+            } else {
+                alert("No recent sales found to print.");
+            }
+        } catch (err) {
+            console.error("Failed to print last receipt", err);
+        }
       } else if (key === shortcuts.logout.toUpperCase()) {
         e.preventDefault();
         handleLogout();
@@ -158,7 +192,7 @@ export default function POS(): JSX.Element {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [cart.length, canViewRepairs, canViewReports]);
+  }, [cart.length, canViewRepairs, canViewReports, navigate]);
 
   const fetchData = async (): Promise<void> => {
     try {
