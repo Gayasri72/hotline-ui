@@ -314,6 +314,7 @@ export function PaymentModal({
                     onChange={(e) =>
                       setDiscountValue(parseFloat(e.target.value) || 0)
                     }
+                    onWheel={(e) => (e.target as HTMLInputElement).blur()}
                     placeholder="Enter value"
                     className="flex-1 px-3 py-2.5 bg-white border border-sky-200 rounded-xl text-slate-800 text-sm focus:outline-none focus:border-sky-500"
                   />
@@ -494,7 +495,8 @@ export function PaymentModal({
                     type="number"
                     value={amountReceived}
                     onChange={(e) => setAmountReceived(e.target.value)}
-                    className={`w-full pl-14 pr-4 py-4 bg-white rounded-2xl text-slate-800 text-3xl text-center font-bold border-2 transition-all focus:outline-none ${amountReceived && parseFloat(amountReceived) >= finalTotal ? "border-sky-500/50 focus:border-sky-500" : amountReceived && parseFloat(amountReceived) < finalTotal ? "border-amber-500/50 focus:border-amber-500" : "border-sky-200 focus:border-sky-500"}`}
+                    onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                    className={`w-full pl-14 pr-4 py-4 bg-white rounded-2xl text-slate-800 text-3xl text-center font-bold border-2 transition-all focus:outline-none ${amountReceived && parseFloat(amountReceived) >= finalTotal ? "border-sky-500/50 focus:border-sky-500" : amountReceived && parseFloat(amountReceived) < finalTotal ? "border-amb-500/50 focus:border-amber-500" : "border-sky-200 focus:border-sky-500"}`}
                     placeholder="0"
                     autoFocus
                   />
@@ -558,6 +560,7 @@ export function PaymentModal({
                       type="number"
                       value={splitCash}
                       onChange={(e) => handleSplitCashChange(e.target.value)}
+                      onWheel={(e) => (e.target as HTMLInputElement).blur()}
                       className={`w-full pl-10 pr-3 py-3.5 bg-white rounded-xl text-slate-800 text-xl text-center font-bold border-2 transition-all focus:outline-none ${splitCashAmount > 0 ? "border-emerald-400/50 focus:border-emerald-500" : "border-sky-200 focus:border-sky-500"}`}
                       placeholder="0"
                       autoFocus
@@ -578,6 +581,7 @@ export function PaymentModal({
                       type="number"
                       value={splitCard}
                       onChange={(e) => handleSplitCardChange(e.target.value)}
+                      onWheel={(e) => (e.target as HTMLInputElement).blur()}
                       className={`w-full pl-10 pr-3 py-3.5 bg-white rounded-xl text-slate-800 text-xl text-center font-bold border-2 transition-all focus:outline-none ${splitCardAmount > 0 ? "border-blue-400/50 focus:border-blue-500" : "border-sky-200 focus:border-sky-500"}`}
                       placeholder="0"
                     />

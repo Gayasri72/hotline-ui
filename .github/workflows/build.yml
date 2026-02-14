@@ -34,7 +34,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-installer
-          path: release/**/*.exe
+          path: |
+            release/**/*.exe
+            release/**/*.blockmap
+            release/**/latest.yml
 
   build-linux:
     runs-on: ubuntu-latest
@@ -63,6 +66,7 @@ jobs:
           path: |
             release/**/*.AppImage
             release/**/*.deb
+            release/**/latest-linux.yml
 
   release:
     needs: [build-windows, build-linux]
@@ -88,8 +92,11 @@ jobs:
             - **Existing users**: Update will be prompted automatically in the app
           files: |
             windows-installer/**/*.exe
+            windows-installer/**/*.blockmap
+            windows-installer/**/latest.yml
             linux-installer/**/*.AppImage
             linux-installer/**/*.deb
+            linux-installer/**/latest-linux.yml
           draft: true
           generate_release_notes: true
         env:

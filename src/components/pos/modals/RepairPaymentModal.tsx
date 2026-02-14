@@ -303,6 +303,7 @@ export function RepairPaymentModal({
                   min="0"
                   value={amountReceived}
                   onChange={(e) => handleAmountChange(e.target.value)}
+                  onWheel={(e) => (e.target as HTMLInputElement).blur()}
                   className={`w-full pl-14 pr-4 py-3.5 bg-white border-2 rounded-xl text-2xl font-bold text-center focus:outline-none transition-all ${
                     amountError
                       ? "border-red-300 focus:border-red-500"
@@ -374,6 +375,7 @@ export function RepairPaymentModal({
                     min="0"
                     value={cashAmount}
                     onChange={(e) => handleCashChange(e.target.value)}
+                    onWheel={(e) => (e.target as HTMLInputElement).blur()}
                     className={`w-full pl-12 pr-4 py-3 bg-white border-2 rounded-xl text-lg font-bold focus:outline-none transition-all ${
                       cashAmount && (parseFloat(cashAmount) || 0) <= 0 ? 'border-red-300 focus:border-red-500' : 'border-slate-200 focus:border-blue-500'
                     }`}
@@ -393,6 +395,7 @@ export function RepairPaymentModal({
                     min="0"
                     value={cardAmount}
                     onChange={(e) => handleCardChange(e.target.value)}
+                    onWheel={(e) => (e.target as HTMLInputElement).blur()}
                     className={`w-full pl-12 pr-4 py-3 bg-white border-2 rounded-xl text-lg font-bold focus:outline-none transition-all ${
                       cardAmount && (parseFloat(cardAmount) || 0) <= 0 ? 'border-red-300 focus:border-red-500' : 'border-slate-200 focus:border-blue-500'
                     }`}

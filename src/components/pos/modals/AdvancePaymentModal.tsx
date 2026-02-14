@@ -204,6 +204,7 @@ export function AdvancePaymentModal({
                 type="number"
                 value={amountReceived}
                 onChange={(e) => setAmountReceived(e.target.value)}
+                onWheel={(e) => (e.target as HTMLInputElement).blur()}
                 className={`w-full pl-14 pr-4 py-4 bg-white rounded-2xl text-slate-800 text-3xl text-center font-bold border-2 transition-all focus:outline-none ${advanceAmount > 0 ? "border-blue-500/50 focus:border-blue-500" : "border-sky-200 focus:border-sky-500"}`}
                 placeholder="0"
                 autoFocus
