@@ -63,37 +63,41 @@ interface DeviceReceivedData {
 }
 
 const receiptStyles = `
-  @page { size: 80mm auto; margin: 0; }
+  @page { size: 72mm auto; margin: 0; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { 
-    font-family: 'Segoe UI', Arial, sans-serif; 
-    font-size: 12px; 
-    width: 80mm; 
+    font-family: 'Arial', 'Helvetica', sans-serif; 
+    font-size: 11px; 
+    width: 72mm;
+    max-width: 72mm;
     margin: 0;
-    padding: 3mm;
+    padding: 2mm;
     background: #fff;
     color: #000;
+    overflow: hidden;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  .receipt { width: 100%; overflow: hidden; }
-  .header { text-align: center; padding-bottom: 3mm; border-bottom: 2px dashed #333; }
-  .logo { font-size: 16px; font-weight: bold; color: #000; margin-bottom: 2mm; }
-  .shop-info { font-size: 10px; color: #333; line-height: 1.4; }
-  .section { padding: 3mm 0; border-bottom: 1px dashed #999; }
-  .section-title { font-weight: bold; font-size: 11px; color: #000; margin-bottom: 2mm; text-transform: uppercase; letter-spacing: 0.5px; background: #eee; padding: 1mm 2mm; }
-  .row { display: flex; justify-content: space-between; margin-bottom: 1mm; gap: 2mm; }
-  .row.total { font-weight: bold; font-size: 13px; border-top: 2px solid #000; padding-top: 2mm; margin-top: 2mm; }
-  .item-name { flex: 1; min-width: 0; word-wrap: break-word; overflow-wrap: break-word; }
-  .item-qty { min-width: 12mm; text-align: center; color: #333; flex-shrink: 0; }
-  .item-price { min-width: 20mm; text-align: right; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
-  .label { color: #333; min-width: 20mm; flex-shrink: 0; }
-  .value { font-weight: 600; color: #000; text-align: right; min-width: 0; word-break: break-word; overflow-wrap: break-word; flex: 1; }
-  .highlight { color: #0066cc; font-weight: 600; }
-  .footer { text-align: center; padding-top: 4mm; font-size: 10px; color: #333; border-top: 2px dashed #333; margin-top: 2mm; }
-  .footer .thanks { font-size: 12px; font-weight: bold; color: #000; margin-bottom: 2mm; }
-  .meta { font-size: 10px; color: #555; }
-  .note { font-size: 9px; color: #666; font-style: italic; margin-top: 2mm; text-align: center; padding: 2mm; background: #f5f5f5; border-radius: 2mm; }
+  .receipt { width: 100%; max-width: 100%; overflow: hidden; }
+  .header { text-align: center; padding-bottom: 2mm; border-bottom: 1px dashed #000; }
+  .logo { font-size: 14px; font-weight: bold; color: #000; margin-bottom: 1mm; }
+  .shop-info { font-size: 9px; color: #000; line-height: 1.3; word-wrap: break-word; overflow-wrap: break-word; }
+  .section { padding: 2mm 0; border-bottom: 1px dashed #000; }
+  .section-title { font-weight: bold; font-size: 10px; color: #000; margin-bottom: 1.5mm; text-transform: uppercase; letter-spacing: 0.3px; }
+  .row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5mm; gap: 1mm; max-width: 100%; overflow: hidden; }
+  .row.total { font-weight: bold; font-size: 12px; border-top: 1px solid #000; padding-top: 1.5mm; margin-top: 1.5mm; }
+  .item-name { flex: 1; min-width: 0; word-wrap: break-word; overflow-wrap: break-word; font-size: 10px; }
+  .item-qty { width: 8mm; text-align: center; color: #000; flex-shrink: 0; font-size: 10px; }
+  .item-price { width: 18mm; text-align: right; flex-shrink: 0; font-size: 10px; white-space: nowrap; overflow: hidden; }
+  .label { color: #000; flex-shrink: 0; font-size: 10px; }
+  .value { font-weight: 600; color: #000; text-align: right; min-width: 0; word-wrap: break-word; overflow-wrap: break-word; flex: 1; font-size: 10px; }
+  .highlight { font-weight: bold; }
+  .footer { text-align: center; padding-top: 3mm; font-size: 9px; color: #000; border-top: 1px dashed #000; margin-top: 1mm; }
+  .footer .thanks { font-size: 11px; font-weight: bold; color: #000; margin-bottom: 1mm; }
+  .meta { font-size: 9px; color: #000; overflow: hidden; }
+  .meta span { max-width: 48%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; }
+  .meta span:last-child { text-align: right; }
+  .note { font-size: 8px; color: #000; font-style: italic; margin-top: 1mm; text-align: center; padding: 1mm; }
 `;
 
 function formatCurrency(amount: number): string {

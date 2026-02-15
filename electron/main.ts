@@ -164,10 +164,10 @@ app.whenReady().then(() => {
 
 ipcMain.handle('silent-print', async (_event, html: string) => {
   return new Promise((resolve, reject) => {
-    // Set width to ~302px (80mm at 96dpi) to match receipt CSS
+    // Set width to ~272px (72mm at 96dpi) to match receipt CSS
     const printWindow = new BrowserWindow({
       show: false,
-      width: 302,
+      width: 272,
       height: 800,
       webPreferences: {
         nodeIntegration: false,
