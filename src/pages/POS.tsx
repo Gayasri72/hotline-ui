@@ -41,7 +41,7 @@ export default function POS(): JSX.Element {
   // Permission checks
   const canApplyDiscount = hasPermission(PERMISSIONS.APPLY_DISCOUNT);
   const canVoidSale = hasPermission(PERMISSIONS.VOID_SALE);
-  const canViewReports = hasPermission(PERMISSIONS.VIEW_SALES_REPORT);
+  const canViewSales = hasPermission(PERMISSIONS.VIEW_SALES);
   const canViewRepairs =
     hasPermission(PERMISSIONS.VIEW_REPAIRS) ||
     hasPermission(PERMISSIONS.COLLECT_REPAIR_PAYMENT);
@@ -70,9 +70,6 @@ export default function POS(): JSX.Element {
 
   // Sales Panel State
   const [showSalesPanel, setShowSalesPanel] = useState<boolean>(false);
-  const [salesData, setSalesData] = useState<any[]>([]);
-  const [dailySummary, setDailySummary] = useState<any>(null);
-  const [salesLoading, setSalesLoading] = useState<boolean>(false);
 
   // Repairs Panel State
   const [showRepairsPanel, setShowRepairsPanel] = useState<boolean>(false);
@@ -146,10 +143,9 @@ export default function POS(): JSX.Element {
         e.preventDefault();
         setShowRepairsPanel(true);
         fetchRepairs();
-      } else if (key === shortcuts.openSales.toUpperCase() && canViewReports) {
+      } else if (key === shortcuts.openSales.toUpperCase() && canViewSales) {
         e.preventDefault();
         setShowSalesPanel(true);
-        fetchSalesData();
       } else if (key === shortcuts.focusSearch.toUpperCase()) {
         e.preventDefault();
         searchInputRef.current?.focus();
@@ -192,7 +188,7 @@ export default function POS(): JSX.Element {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [cart.length, canViewRepairs, canViewReports, navigate]);
+  }, [cart.length, canViewRepairs, canViewSales, navigate]);
 
   const fetchData = async (): Promise<void> => {
     try {
@@ -236,25 +232,7 @@ export default function POS(): JSX.Element {
     }
   }, []);
 
-  const fetchSalesData = async () => {
-    setSalesLoading(true);
-    try {
-      const [salesRes, summaryRes] = await Promise.all([
-        api<any>("/sales?limit=20"),
-        api<any>("/sales/daily"),
-      ]);
-      if (salesRes.status === "success") {
-        setSalesData(salesRes.data?.sales || []);
-      }
-      if (summaryRes.status === "success") {
-        setDailySummary(summaryRes.data?.summary || null);
-      }
-    } catch (err) {
-      console.error("Failed to fetch sales:", err);
-    } finally {
-      setSalesLoading(false);
-    }
-  };
+
 
   // Fetch repairs (all statuses for full visibility)
   const fetchRepairs = async () => {
@@ -594,12 +572,9 @@ export default function POS(): JSX.Element {
 
         {/* Action Buttons & User Info */}
         <div className="flex items-center gap-2">
-          {canViewReports && (
+          {canViewSales && (
             <button
-              onClick={() => {
-                setShowSalesPanel(true);
-                fetchSalesData();
-              }}
+              onClick={() => setShowSalesPanel(true)}
               className="flex items-center gap-2 px-3 py-2 bg-white/60 hover:bg-sky-50 border border-sky-200 rounded-xl text-slate-600 hover:text-sky-700 transition-all group shadow-sm"
               title="Sales Reports"
             >
@@ -1520,12 +1495,8 @@ export default function POS(): JSX.Element {
       {/* Sales Panel */}
       {showSalesPanel && (
         <SalesPanel
-          salesData={salesData}
-          dailySummary={dailySummary}
-          loading={salesLoading}
           canVoidSale={canVoidSale}
           onClose={() => setShowSalesPanel(false)}
-          onRefresh={fetchSalesData}
         />
       )}
 

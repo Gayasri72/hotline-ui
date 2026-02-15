@@ -152,12 +152,8 @@ export interface PaymentModalProps {
 }
 
 export interface SalesPanelProps {
-  salesData: any[];
-  dailySummary: any;
-  loading: boolean;
   canVoidSale: boolean;
   onClose: () => void;
-  onRefresh: () => void;
 }
 
 export interface RepairsPanelProps {

@@ -63,18 +63,20 @@ interface DeviceReceivedData {
 }
 
 const receiptStyles = `
+  @page { size: 80mm auto; margin: 0; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { 
     font-family: 'Segoe UI', Arial, sans-serif; 
     font-size: 12px; 
     width: 80mm; 
-    padding: 5mm;
+    margin: 0;
+    padding: 3mm;
     background: #fff;
     color: #000;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  .receipt { max-width: 72mm; margin: 0 auto; }
+  .receipt { width: 100%; overflow: hidden; }
   .header { text-align: center; padding-bottom: 3mm; border-bottom: 2px dashed #333; }
   .logo { font-size: 16px; font-weight: bold; color: #000; margin-bottom: 2mm; }
   .shop-info { font-size: 10px; color: #333; line-height: 1.4; }
@@ -82,11 +84,11 @@ const receiptStyles = `
   .section-title { font-weight: bold; font-size: 11px; color: #000; margin-bottom: 2mm; text-transform: uppercase; letter-spacing: 0.5px; background: #eee; padding: 1mm 2mm; }
   .row { display: flex; justify-content: space-between; margin-bottom: 1mm; gap: 2mm; }
   .row.total { font-weight: bold; font-size: 13px; border-top: 2px solid #000; padding-top: 2mm; margin-top: 2mm; }
-  .item-name { flex: 1; word-wrap: break-word; overflow-wrap: break-word; }
-  .item-qty { min-width: 12mm; text-align: center; color: #333; }
-  .item-price { min-width: 22mm; text-align: right; white-space: nowrap; }
-  .label { color: #333; min-width: 25mm; }
-  .value { font-weight: 600; color: #000; text-align: right; word-wrap: break-word; flex: 1; }
+  .item-name { flex: 1; min-width: 0; word-wrap: break-word; overflow-wrap: break-word; }
+  .item-qty { min-width: 12mm; text-align: center; color: #333; flex-shrink: 0; }
+  .item-price { min-width: 20mm; text-align: right; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
+  .label { color: #333; min-width: 20mm; flex-shrink: 0; }
+  .value { font-weight: 600; color: #000; text-align: right; min-width: 0; word-break: break-word; overflow-wrap: break-word; flex: 1; }
   .highlight { color: #0066cc; font-weight: 600; }
   .footer { text-align: center; padding-top: 4mm; font-size: 10px; color: #333; border-top: 2px dashed #333; margin-top: 2mm; }
   .footer .thanks { font-size: 12px; font-weight: bold; color: #000; margin-bottom: 2mm; }
@@ -132,7 +134,7 @@ export function generateSaleReceiptHTML(sale: SaleData): string {
     <body>
       <div class="receipt">
         <div class="header">
-          <div class="logo">✦ ${shopHeader.split('\n')[0] || 'HOTLINE POS'} ✦</div>
+          <div class="logo">${shopHeader.split('\n')[0] || 'HOTLINE POS'}</div>
           <div class="shop-info">${shopHeader.split('\n').slice(1).join('<br>')}</div>
         </div>
 
@@ -177,7 +179,7 @@ export function generateSaleReceiptHTML(sale: SaleData): string {
         </div>
 
         <div class="footer">
-          <div class="thanks">Thank you for your visit! 💙</div>
+          <div class="thanks">Thank you for your visit!</div>
           <div>${shopFooter || 'Come again soon'}</div>
           <div style="margin-top: 2mm; font-size: 9px; color: #888;">System by Pixzoralabs</div>
         </div>
@@ -210,7 +212,7 @@ export function generateRepairReceiptHTML(repair: RepairData): string {
     <body>
       <div class="receipt">
         <div class="header">
-          <div class="logo">✦ ${shopHeader.split('\n')[0] || 'HOTLINE POS'} ✦</div>
+          <div class="logo">${shopHeader.split('\n')[0] || 'HOTLINE POS'}</div>
           <div class="shop-info">${shopHeader.split('\n').slice(1).join('<br>')}</div>
         </div>
 
@@ -280,7 +282,7 @@ export function generateRepairReceiptHTML(repair: RepairData): string {
           <div class="section-title">Payment Split</div>
           ${repair.payments.map(p => `
           <div class="row">
-            <span class="label">${p.method === 'CASH' ? '💵 Cash' : p.method === 'CARD' ? '💳 Card' : p.method}</span>
+            <span class="label">${p.method === 'CASH' ? 'Cash' : p.method === 'CARD' ? 'Card' : p.method}</span>
             <span class="value">${formatCurrency(p.amount)}</span>
           </div>`).join('')}
           <div class="row">
@@ -288,7 +290,7 @@ export function generateRepairReceiptHTML(repair: RepairData): string {
             <span class="value">${formatCurrency(repair.amountReceived || 0)}</span>
           </div>` : `
           <div class="row">
-            <span class="label">${repair.payments?.[0]?.method === 'CARD' ? '💳 Card Payment' : '💵 Cash Received'}</span>
+            <span class="label">${repair.payments?.[0]?.method === 'CARD' ? 'Card Payment' : 'Cash Received'}</span>
             <span class="value">${formatCurrency(repair.amountReceived || 0)}</span>
           </div>`}
           ${(repair.change || 0) > 0 ? `
@@ -299,7 +301,7 @@ export function generateRepairReceiptHTML(repair: RepairData): string {
         </div>
 
         <div class="footer">
-          <div class="thanks">Thank you for choosing us! 💙</div>
+          <div class="thanks">Thank you for choosing us!</div>
           <div>${shopFooter || 'Quality repairs, always'}</div>
           <div style="margin-top: 2mm; font-size: 9px; color: #888;">System by Pixzoralabs</div>
         </div>
@@ -330,12 +332,12 @@ export function generateDeviceReceivedReceiptHTML(repair: DeviceReceivedData): s
     <body>
       <div class="receipt">
         <div class="header">
-          <div class="logo">✦ ${shopHeader.split('\n')[0] || 'HOTLINE POS'} ✦</div>
+          <div class="logo">${shopHeader.split('\n')[0] || 'HOTLINE POS'}</div>
           <div class="shop-info">${shopHeader.split('\n').slice(1).join('<br>')}</div>
         </div>
 
         <div class="section">
-          <div class="section-title">📋 DEVICE RECEIVED SLIP</div>
+          <div class="section-title">DEVICE RECEIVED SLIP</div>
           <div class="row meta">
             <span>Job #: ${repair.jobNumber}</span>
             <span>${receivedDate}</span>
@@ -343,7 +345,7 @@ export function generateDeviceReceivedReceiptHTML(repair: DeviceReceivedData): s
         </div>
 
         <div class="section">
-          <div class="section-title">👤 Customer</div>
+          <div class="section-title">Customer</div>
           <div class="row">
             <span class="label">Name</span>
             <span class="value">${repair.customer.name}</span>
@@ -359,7 +361,7 @@ export function generateDeviceReceivedReceiptHTML(repair: DeviceReceivedData): s
         </div>
 
         <div class="section">
-          <div class="section-title">📱 Device</div>
+          <div class="section-title">Device</div>
           <div class="row">
             <span class="label">Device</span>
             <span class="value">${repair.device.brand} ${repair.device.model}</span>
@@ -383,14 +385,14 @@ export function generateDeviceReceivedReceiptHTML(repair: DeviceReceivedData): s
         </div>
 
         <div class="section">
-          <div class="section-title">🔧 Problem</div>
+          <div class="section-title">Problem</div>
           <div style="font-size: 11px; color: #000; line-height: 1.4;">
             ${repair.problemDescription || 'N/A'}
           </div>
         </div>
 
         <div class="section">
-          <div class="section-title">💰 Payment</div>
+          <div class="section-title">Payment</div>
           <div class="row">
             <span class="label">Est. Cost</span>
             <span class="value">${formatCurrency(repair.estimatedCost || 0)}</span>
@@ -412,7 +414,7 @@ export function generateDeviceReceivedReceiptHTML(repair: DeviceReceivedData): s
         </div>
 
         <div class="footer">
-          <div class="thanks">📋 Please keep this slip safe</div>
+          <div class="thanks">Please keep this slip safe</div>
           <div>Please bring this receipt for collection.</div>
           <div style="margin-top: 2mm; font-size: 9px; color: #888;">System by Pixzoralabs</div>
         </div>

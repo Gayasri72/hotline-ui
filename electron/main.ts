@@ -164,8 +164,11 @@ app.whenReady().then(() => {
 
 ipcMain.handle('silent-print', async (_event, html: string) => {
   return new Promise((resolve, reject) => {
+    // Set width to ~302px (80mm at 96dpi) to match receipt CSS
     const printWindow = new BrowserWindow({
       show: false,
+      width: 302,
+      height: 800,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
@@ -176,12 +179,13 @@ ipcMain.handle('silent-print', async (_event, html: string) => {
     printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
 
     printWindow.webContents.on('did-finish-load', () => {
-      // Print silently to default printer
+      // Print silently to default printer with thermal receipt paper size
       printWindow.webContents.print(
         { 
           silent: true, 
           printBackground: true,
-          margins: { marginType: 'none' }
+          margins: { marginType: 'none' },
+          pageSize: { width: 80000, height: 297000 } // 80mm width in microns
         },
         (success, errorType) => {
           printWindow.close()
