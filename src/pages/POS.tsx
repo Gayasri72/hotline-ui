@@ -116,7 +116,150 @@ export default function POS(): JSX.Element {
   // Search input ref
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // Toggle:
+  //  ON  — auto-scan: rapid keystroke burst detected → auto-add to cart, no Enter needed
+  //  OFF — manual:    scan fills search bar, cashier presses Enter to add to cart
+  const [autoScanMode, setAutoScanMode] = useState<boolean>(true);
+  const autoScanModeRef = useRef<boolean>(true);
+  useEffect(() => { autoScanModeRef.current = autoScanMode; }, [autoScanMode]);
 
+  // --- Barcode scanner ---
+
+  // add-to-cart helper — functional setCart avoids stale cart state
+  const addToCartFromScan = useCallback((match: Product) => {
+    if ((match.stock ?? 0) === 0) {
+      alert("Product is out of stock!");
+      return;
+    }
+    if ((match.warrantyDuration ?? 0) > 0) {
+      setPendingProduct(match);
+      setSerialNumberInput("");
+      setShowSerialModal(true);
+      return;
+    }
+    setCart((prev) => {
+      const existing = prev.find((item) => item._id === match._id);
+      if (existing) {
+        if (existing.quantity >= (match.stock ?? 0)) {
+          alert(`Only ${match.stock} available!`);
+          return prev;
+        }
+        return prev.map((item) =>
+          item._id === match._id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item,
+        );
+      }
+      return [...prev, { ...match, quantity: 1 }];
+    });
+  }, []);
+
+  const productsRef = useRef<Product[]>(products);
+  useEffect(() => { productsRef.current = products; }, [products]);
+
+  const addToCartFromScanRef = useRef(addToCartFromScan);
+  useEffect(() => { addToCartFromScanRef.current = addToCartFromScan; }, [addToCartFromScan]);
+
+  // Timestamp of last printable char — used to distinguish scanner burst from manual typing
+  const lastCharTimeRef = useRef<number>(0);
+  // Debounce timer ref for auto-scan ON mode
+  const scanDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Helper: read live DOM value, match, and add to cart
+  const tryAddFromSearchInput = useCallback(() => {
+    const query = (searchInputRef.current?.value ?? "").trim();
+    if (query.length < 2) return;
+    const match = productsRef.current.find(
+      (p) =>
+        (p.barcode && p.barcode === query) ||
+        (p.sku && p.sku.toLowerCase() === query.toLowerCase()),
+    );
+    if (!match) return;
+
+    // Clear input
+    setSearchQuery("");
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+    if (searchInputRef.current) {
+      setter?.call(searchInputRef.current, "");
+      searchInputRef.current.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    addToCartFromScanRef.current(match);
+  }, []);
+
+  useEffect(() => {
+    const SCAN_BURST_MS = 80;   // max ms between chars considered a scanner burst
+    const AUTO_SCAN_DELAY = 150; // ms after last burst char before auto-triggering
+
+    const handleKey = (e: KeyboardEvent) => {
+      if (
+        showPaymentModal ||
+        showSerialModal ||
+        selectedRepairForPayment ||
+        selectedWarrantyForClaim
+      ) return;
+
+      const target = e.target as HTMLElement;
+      const isInsideInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA";
+      const isSearchFocused = target === searchInputRef.current;
+      const isOtherInput = isInsideInput && !isSearchFocused;
+      if (isOtherInput) return;
+
+      // ── Printable char ───────────────────────────────────────────────────────
+      if (e.key.length === 1) {
+        const now = Date.now();
+        const elapsed = now - lastCharTimeRef.current;
+        lastCharTimeRef.current = now;
+
+        // Redirect to search input if not already focused
+        if (!isInsideInput) {
+          e.preventDefault();
+          const input = searchInputRef.current;
+          if (input) {
+            input.focus();
+            const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+            const newVal = input.value + e.key;
+            setter?.call(input, newVal);
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            setSearchQuery(newVal);
+          }
+        }
+
+        // ON mode: if this looks like a scanner burst char, arm/reset the debounce timer
+        if (autoScanModeRef.current) {
+          const isBurstChar = elapsed < SCAN_BURST_MS || elapsed > 1000;
+          // elapsed > 1000 covers the very first char (no prior key)
+          if (isBurstChar) {
+            if (scanDebounceRef.current) clearTimeout(scanDebounceRef.current);
+            scanDebounceRef.current = setTimeout(() => {
+              scanDebounceRef.current = null;
+              tryAddFromSearchInput();
+            }, AUTO_SCAN_DELAY);
+          }
+        }
+        return;
+      }
+
+      // ── Enter key ────────────────────────────────────────────────────────────
+      if (isSearchFocused && e.key === "Enter") {
+        // Cancel any pending auto-scan debounce (Enter beats the timer)
+        if (scanDebounceRef.current) {
+          clearTimeout(scanDebounceRef.current);
+          scanDebounceRef.current = null;
+        }
+
+        // OFF mode: Enter always adds to cart (manual workflow)
+        // ON mode:  Enter also adds (scanner's own Enter or manual — both are fine)
+        e.preventDefault();
+        tryAddFromSearchInput();
+      }
+    };
+
+    document.addEventListener("keydown", handleKey, true);
+    return () => {
+      document.removeEventListener("keydown", handleKey, true);
+      if (scanDebounceRef.current) clearTimeout(scanDebounceRef.current);
+    };
+  }, [showPaymentModal, showSerialModal, selectedRepairForPayment, selectedWarrantyForClaim, tryAddFromSearchInput]);
 
   // Keyboard shortcuts handler
   useEffect(() => {
@@ -523,6 +666,35 @@ export default function POS(): JSX.Element {
           </div>
         </div>
 
+        {/* Search Bar + Auto-Scan Toggle */}
+        <div className="flex items-center gap-2">
+        {/* Auto-scan toggle */}
+        <button
+          onClick={() => setAutoScanMode((v) => !v)}
+          title={autoScanMode ? "Auto-scan ON: scan automatically adds to cart (no Enter needed)" : "Auto-scan OFF: scan fills search bar, press Enter to add to cart"}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all shadow-sm select-none ${
+            autoScanMode
+              ? "bg-sky-500 border-sky-500 text-white shadow-sky-200"
+              : "bg-white border-slate-300 text-slate-500"
+          }`}
+        >
+          {/* barcode icon */}
+          <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 5v14M7 5v14M13 5v14M17 5v14M21 5v14M10 5v14" />
+          </svg>
+          {/* pill toggle */}
+          <span
+            className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${
+              autoScanMode ? "bg-white/30" : "bg-slate-200"
+            }`}
+          >
+            <span
+              className={`inline-block h-3 w-3 rounded-full bg-white shadow transition-transform ${
+                autoScanMode ? "translate-x-3.5" : "translate-x-0.5"
+              }`}
+            />
+          </span>
+        </button>
         {/* Search Bar - Enhanced */}
         <div className="relative w-[420px]">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -569,6 +741,7 @@ export default function POS(): JSX.Element {
             </button>
           )}
         </div>
+        </div>{/* end Search Bar + Auto-Scan Toggle wrapper */}
 
         {/* Action Buttons & User Info */}
         <div className="flex items-center gap-2">
