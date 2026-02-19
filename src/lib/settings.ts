@@ -29,10 +29,10 @@ export interface KeyboardShortcuts {
 // ============================================
 
 export const DEFAULT_SHOP_SETTINGS: ShopSettings = {
-  shopName: "Hotline Mobile Shop",
-  address: "",
-  phone: "",
-  email: "",
+  shopName: "Hotline Cellular",
+  address: "No 27, Katuwana road, Homagama",
+  phone: "0777309726 / 0756318740",
+  email: "hotlinephoneshop@gmail.com",
   footerMessage: "Thank you for your business!",
 };
 
@@ -62,7 +62,15 @@ export function getShopSettings(): ShopSettings {
   try {
     const stored = localStorage.getItem(SHOP_SETTINGS_KEY);
     if (stored) {
-      return { ...DEFAULT_SHOP_SETTINGS, ...JSON.parse(stored) };
+      const parsed: Partial<ShopSettings> = JSON.parse(stored);
+      // Merge: only use stored value if it's a non-empty string, otherwise fall back to default
+      return {
+        shopName:      parsed.shopName?.trim()      || DEFAULT_SHOP_SETTINGS.shopName,
+        address:       parsed.address?.trim()       || DEFAULT_SHOP_SETTINGS.address,
+        phone:         parsed.phone?.trim()         || DEFAULT_SHOP_SETTINGS.phone,
+        email:         parsed.email?.trim()         || DEFAULT_SHOP_SETTINGS.email,
+        footerMessage: parsed.footerMessage?.trim() || DEFAULT_SHOP_SETTINGS.footerMessage,
+      };
     }
   } catch (e) {
     console.error("Failed to load shop settings:", e);

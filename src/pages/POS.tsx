@@ -4,7 +4,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { PERMISSIONS } from "../constants/permission";
 import { api } from "../lib/api";
 import { getKeyboardShortcuts } from "../lib/settings";
-import { generateSaleReceiptHTML, printReceipt } from "../lib/receipt";
+import { generateSaleReceiptHTML, printReceipt, preloadReceiptLogo } from "../lib/receipt";
 
 // Import types from centralized types file
 import {
@@ -338,6 +338,7 @@ export default function POS(): JSX.Element {
       const [catData, prodData] = await Promise.all([
         api<CategoriesResponse>("/categories?tree=true"),
         api<ProductsResponse>("/products"),
+        preloadReceiptLogo(),          // load logo once for all receipts
       ]);
       if (catData.status === "success" && catData.data) {
         setCategoryTree(catData.data.categories || []);

@@ -1,4 +1,5 @@
 import { getReceiptHeader, getReceiptFooter } from './settings';
+import { HOTLINE_LOGO_BASE64 } from '../assets/hotline-logo-base64';
 
 // Declare type for electronPrint
 declare global {
@@ -7,6 +8,22 @@ declare global {
       silentPrint: (html: string) => Promise<{ success: boolean }>;
     };
   }
+}
+
+/** @deprecated No longer needed — logo is now statically embedded. Kept for compatibility. */
+export async function preloadReceiptLogo(): Promise<void> { /* no-op */ }
+
+// Helper: build the receipt header block
+// Logo is always available — baked in as a base64 compile-time constant.
+function buildReceiptHeader(shopHeader: string): string {
+  const lines = shopHeader.split('\n').map(l => l.trim()).filter(Boolean);
+  const shopName = lines[0] || 'HOTLINE POS';
+  const shopInfo = lines.slice(1).join('<br>');
+  return `
+    <div class="header">
+      <img src="${HOTLINE_LOGO_BASE64}" alt="${shopName}" />
+      <div class="shop-info">${shopInfo}</div>
+    </div>`;
 }
 
 interface SaleItem {
@@ -80,6 +97,7 @@ const receiptStyles = `
   }
   .receipt { width: 100%; max-width: 100%; overflow: hidden; }
   .header { text-align: center; padding-bottom: 2mm; border-bottom: 1px dashed #000; }
+  .header img { display: block; margin: 0 auto 1mm; width: 62mm; height: auto; max-height: 30mm; object-fit: contain; image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .logo { font-size: 14px; font-weight: bold; color: #000; margin-bottom: 1mm; }
   .shop-info { font-size: 9px; color: #000; line-height: 1.3; word-wrap: break-word; overflow-wrap: break-word; }
   .section { padding: 2mm 0; border-bottom: 1px dashed #000; }
@@ -137,10 +155,7 @@ export function generateSaleReceiptHTML(sale: SaleData): string {
     </head>
     <body>
       <div class="receipt">
-        <div class="header">
-          <div class="logo">${shopHeader.split('\n')[0] || 'HOTLINE POS'}</div>
-          <div class="shop-info">${shopHeader.split('\n').slice(1).join('<br>')}</div>
-        </div>
+        ${buildReceiptHeader(shopHeader)}
 
         <div class="section">
           <div class="row meta">
@@ -215,10 +230,7 @@ export function generateRepairReceiptHTML(repair: RepairData): string {
     </head>
     <body>
       <div class="receipt">
-        <div class="header">
-          <div class="logo">${shopHeader.split('\n')[0] || 'HOTLINE POS'}</div>
-          <div class="shop-info">${shopHeader.split('\n').slice(1).join('<br>')}</div>
-        </div>
+        ${buildReceiptHeader(shopHeader)}
 
         <div class="section">
           <div class="row meta">
@@ -335,10 +347,7 @@ export function generateDeviceReceivedReceiptHTML(repair: DeviceReceivedData): s
     </head>
     <body>
       <div class="receipt">
-        <div class="header">
-          <div class="logo">${shopHeader.split('\n')[0] || 'HOTLINE POS'}</div>
-          <div class="shop-info">${shopHeader.split('\n').slice(1).join('<br>')}</div>
-        </div>
+        ${buildReceiptHeader(shopHeader)}
 
         <div class="section">
           <div class="section-title">DEVICE RECEIVED SLIP</div>

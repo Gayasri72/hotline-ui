@@ -2,6 +2,8 @@ import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import fs from 'node:fs'
+import os from 'node:os'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -163,6 +165,11 @@ app.whenReady().then(() => {
 // ============================================
 
 ipcMain.handle('silent-print', async (_event, html: string) => {
+  // Write HTML to a temp file so loadFile() can serve it without any URL size limits.
+  // This is the most reliable way to load large HTML (e.g. with embedded base64 images).
+  const tmpFile = path.join(os.tmpdir(), `receipt-${Date.now()}.html`);
+  fs.writeFileSync(tmpFile, html, 'utf-8');
+
   return new Promise((resolve, reject) => {
     // Set width to ~272px (72mm at 96dpi) to match receipt CSS
     const printWindow = new BrowserWindow({
@@ -175,31 +182,53 @@ ipcMain.handle('silent-print', async (_event, html: string) => {
       }
     })
 
-    // Load the HTML content
-    printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+    // Load from temp file — no URL length limits, image always loads
+    printWindow.loadFile(tmpFile)
 
     printWindow.webContents.on('did-finish-load', () => {
-      // Print silently to default printer with thermal receipt paper size
-      printWindow.webContents.print(
-        { 
-          silent: true, 
-          printBackground: true,
-          margins: { marginType: 'none' },
-          pageSize: { width: 80000, height: 297000 } // 80mm width in microns
-        },
-        (success, errorType) => {
-          printWindow.close()
-          if (success) {
-            resolve({ success: true })
-          } else {
-            reject({ success: false, error: errorType })
+      // Wait for all images to load AND fully decode/paint before printing.
+      // img.complete / onload fires before rasterization — we add a rAF + 300ms
+      // buffer so the GPU has time to composite the image on first print.
+      printWindow.webContents.executeJavaScript(`
+        new Promise(resolve => {
+          const imgs = Array.from(document.images);
+          if (imgs.length === 0) return setTimeout(resolve, 100);
+          let loaded = 0;
+          const done = () => { if (++loaded === imgs.length) {
+            // Extra frame + buffer to let the image fully rasterize
+            requestAnimationFrame(() => setTimeout(resolve, 300));
+          }};
+          imgs.forEach(img => {
+            if (img.complete && img.naturalWidth > 0) done();
+            else { img.onload = done; img.onerror = done; }
+          });
+        })
+      `).then(() => {
+        // Print silently to default printer with thermal receipt paper size
+        printWindow.webContents.print(
+          { 
+            silent: true, 
+            printBackground: true,
+            margins: { marginType: 'none' },
+            pageSize: { width: 80000, height: 297000 } // 80mm width in microns
+          },
+          (success, errorType) => {
+            printWindow.close()
+            // Clean up temp file
+            try { fs.unlinkSync(tmpFile) } catch { /* ignore */ }
+            if (success) {
+              resolve({ success: true })
+            } else {
+              reject({ success: false, error: errorType })
+            }
           }
-        }
-      )
-    })
+        )
+      })
+    }) // end did-finish-load
 
     printWindow.webContents.on('did-fail-load', () => {
       printWindow.close()
+      try { fs.unlinkSync(tmpFile) } catch { /* ignore */ }
       reject({ success: false, error: 'Failed to load print content' })
     })
   })
